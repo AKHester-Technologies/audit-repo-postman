@@ -1,0 +1,5239 @@
+{
+ "info": {
+  "name": "Bundle 3 MVP test cases (US_25) - Chester",
+  "description": "One folder per kept test case of the workbook B3_MVP_Test_Cases_v3.2 (sheet US_25): TC01 to TC19 (TC01 to TC09 are the rewritten cases, TC10 to TC19 the negative cases). Each request is named after the workbook step it follows (TCnn step n - ...); the workbook's column K and its 'Postman map' sheet list the requests for every step.\n\nSet chester_base and the tokens in the environment (see the README). The 'run' variable is created automatically and makes every test patient unique, so the collection can be run again on the same Chester. TC08 (many events at once) runs the batch sequentially; to send from several test sources at once, run the TC08 folder in several newman processes with different tc10_token and tc10_run values (the README shows how).\n\nVerification: run on newman 6.2.3 against the patched Chester on PostgreSQL (tokens from a local key server). Not opened in the Postman app; not run against Keycloak. Do not run TC08 against an in-memory H2 Chester: the chain lock only exists on PostgreSQL.",
+  "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+ },
+ "event": [
+  {
+   "listen": "prerequest",
+   "script": {
+    "type": "text/javascript",
+    "exec": [
+     "if (!pm.collectionVariables.get('run')) { pm.collectionVariables.set('run', pm.variables.replaceIn('{{$guid}}').slice(0, 8)); }",
+     "var t = parseInt(pm.collectionVariables.get('run_started') || '0');",
+     "if (!t || Date.now() - t > 1800000) { pm.collectionVariables.set('run_started', String(Date.now())); pm.collectionVariables.set('recorded', new Date().toISOString().replace(/\\.\\d+Z$/, 'Z')); }"
+    ]
+   }
+  }
+ ],
+ "variable": [
+  {
+   "key": "chester_base",
+   "value": ""
+  },
+  {
+   "key": "run",
+   "value": ""
+  },
+  {
+   "key": "run_started",
+   "value": ""
+  },
+  {
+   "key": "recorded",
+   "value": ""
+  },
+  {
+   "key": "tc10_n",
+   "value": ""
+  },
+  {
+   "key": "tc10_run",
+   "value": ""
+  },
+  {
+   "key": "tc10_token",
+   "value": ""
+  }
+ ],
+ "item": [
+  {
+   "name": "TC01 - Patient merge is recorded",
+   "item": [
+    {
+     "name": "TC01 step 1 - registry test client sends a merge event",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{token_cr}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n \"resourceType\": \"AuditEvent\",\n \"extension\": [\n  {\n   \"url\": \"http://dhp.health.gov.lk/fhir/StructureDefinition/audit-event-uid\",\n   \"valueString\": \"{{u01}}\"\n  }\n ],\n \"type\": {\n  \"system\": \"http://terminology.hl7.org/CodeSystem/audit-event-type\",\n  \"code\": \"rest\",\n  \"display\": \"RESTful Operation\"\n },\n \"action\": \"U\",\n \"recorded\": \"{{recorded}}\",\n \"outcome\": \"0\",\n \"purposeOfEvent\": [\n  {\n   \"coding\": [\n    {\n     \"system\": \"http://terminology.hl7.org/CodeSystem/v3-ActReason\",\n     \"code\": \"TREAT\"\n    }\n   ]\n  }\n ],\n \"agent\": [\n  {\n   \"who\": {\n    \"reference\": \"Practitioner/QA-{{run}}-OFFICER\"\n   },\n   \"requestor\": true\n  }\n ],\n \"source\": {\n  \"site\": \"Client Registry (test)\",\n  \"observer\": {\n   \"reference\": \"Device/qa-{{run}}-cr\"\n  }\n },\n \"entity\": [\n  {\n   \"what\": {\n    \"reference\": \"Patient/QA-{{run}}-KEEP\"\n   }\n  },\n  {\n   \"what\": {\n    \"reference\": \"Patient/QA-{{run}}-MERGED\"\n   }\n  }\n ],\n \"subtype\": [\n  {\n   \"system\": \"http://hl7.org/fhir/restful-interaction\",\n   \"code\": \"operation\"\n  }\n ]\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "prerequest",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.collectionVariables.set('u01', pm.variables.replaceIn('{{$guid}}'));"
+        ]
+       }
+      },
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('201 Created', function () { pm.response.to.have.status(201); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC01 step 1 - auditor finds it by the surviving patient",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent?entity-ref=Patient/QA-{{run}}-KEEP",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ],
+       "query": [
+        {
+         "key": "entity-ref",
+         "value": "Patient/QA-{{run}}-KEEP"
+        }
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+         "pm.test('Search total is 1', function () { pm.expect(pm.response.json().total).to.eql(1); });",
+         "var b = pm.response.json(); if (b.entry && b.entry.length) { pm.collectionVariables.set('id01', b.entry[0].resource.id); }"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC01 step 2 - record shows action, who, when, which system, which patients",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent/{{id01}}",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent",
+        "{{id01}}"
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "var e = pm.response.json();",
+         "pm.test('Action is an update (U)', function () { pm.expect(e.action).to.eql('U'); });",
+         "pm.test('Who performed it', function () { pm.expect(e.agent[0].who.reference).to.include('OFFICER'); });",
+         "pm.test('When: recorded time and time Chester received it', function () { pm.expect(e.recorded).to.be.a('string'); pm.expect(e.meta.lastUpdated).to.be.a('string'); });",
+         "pm.test('Which system sent it: source and Submitted-by client', function () { pm.expect(e.source.site).to.eql('Client Registry (test)'); var t = (e.meta.tag||[]).filter(function (x) { return x.system === 'https://akhester.com/chester/submitting-client'; }); pm.expect(t.length).to.eql(1); pm.expect(t[0].code).to.eql('cr'); });",
+         "pm.test('Both patient records are named', function () { var r = e.entity.map(function (x) { return x.what.reference; }); pm.expect(r).to.include.members(['Patient/QA-' + pm.collectionVariables.get('run') + '-KEEP', 'Patient/QA-' + pm.collectionVariables.get('run') + '-MERGED']); });"
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "TC02 - Break-glass override is recorded and flagged",
+   "item": [
+    {
+     "name": "TC02 step 1 - Consent Manager test client sends a break-glass event",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{token_cm}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n \"resourceType\": \"AuditEvent\",\n \"extension\": [\n  {\n   \"url\": \"http://dhp.health.gov.lk/fhir/StructureDefinition/audit-event-uid\",\n   \"valueString\": \"{{u02}}\"\n  }\n ],\n \"type\": {\n  \"system\": \"http://terminology.hl7.org/CodeSystem/audit-event-type\",\n  \"code\": \"rest\",\n  \"display\": \"RESTful Operation\"\n },\n \"action\": \"R\",\n \"recorded\": \"{{recorded}}\",\n \"outcome\": \"0\",\n \"purposeOfEvent\": [\n  {\n   \"coding\": [\n    {\n     \"system\": \"http://terminology.hl7.org/CodeSystem/v3-ActReason\",\n     \"code\": \"BTG\"\n    }\n   ]\n  }\n ],\n \"agent\": [\n  {\n   \"who\": {\n    \"reference\": \"Practitioner/QA-{{run}}-DOC02\"\n   },\n   \"requestor\": true\n  }\n ],\n \"source\": {\n  \"site\": \"Consent Manager (test)\",\n  \"observer\": {\n   \"reference\": \"Device/qa-{{run}}-cm\"\n  }\n },\n \"entity\": [\n  {\n   \"what\": {\n    \"reference\": \"Patient/QA-{{run}}-BTG\"\n   }\n  }\n ],\n \"subtype\": [\n  {\n   \"system\": \"http://hl7.org/fhir/restful-interaction\",\n   \"code\": \"operation\"\n  }\n ]\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "prerequest",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.collectionVariables.set('u02', pm.variables.replaceIn('{{$guid}}'));"
+        ]
+       }
+      },
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('201 Created', function () { pm.response.to.have.status(201); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC02 step 1 - found by the test patient",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent?entity-ref=Patient/QA-{{run}}-BTG",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ],
+       "query": [
+        {
+         "key": "entity-ref",
+         "value": "Patient/QA-{{run}}-BTG"
+        }
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+         "pm.test('Search total is 1', function () { pm.expect(pm.response.json().total).to.eql(1); });",
+         "var b = pm.response.json(); if (b.entry && b.entry.length) { pm.collectionVariables.set('id02', b.entry[0].resource.id); }"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC02 step 2 - entry shows who, which patient, when, which system",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent/{{id02}}",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent",
+        "{{id02}}"
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "var e = pm.response.json();",
+         "pm.test('Who', function () { pm.expect(e.agent[0].who.reference).to.include('DOC02'); });",
+         "pm.test('Which patient', function () { pm.expect(e.entity[0].what.reference).to.include('-BTG'); });",
+         "pm.test('When and which system', function () { pm.expect(e.recorded).to.be.a('string'); pm.expect(e.source.site).to.eql('Consent Manager (test)'); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC02 step 3 - carries the BTG security label",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent/{{id02}}",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent",
+        "{{id02}}"
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "var s = (pm.response.json().meta.security||[]).map(function (x) { return x.code; });",
+         "pm.test('Security label BTG', function () { pm.expect(s).to.include('BTG'); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC02 step 3 - break-glass=BTG search returns it (Break-glass page query)",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent?break-glass=BTG&entity-ref=Patient/QA-{{run}}-BTG",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ],
+       "query": [
+        {
+         "key": "break-glass",
+         "value": "BTG"
+        },
+        {
+         "key": "entity-ref",
+         "value": "Patient/QA-{{run}}-BTG"
+        }
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+         "pm.test('Our entry is in the result', function () { var ids = (pm.response.json().entry||[]).map(function (x) { return x.resource.id; }); pm.expect(ids).to.include(pm.collectionVariables.get('id02')); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC02 step 3 - a normal event is not in the break-glass list",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent?break-glass=BTG&entity-ref=Patient/QA-{{run}}-KEEP",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ],
+       "query": [
+        {
+         "key": "break-glass",
+         "value": "BTG"
+        },
+        {
+         "key": "entity-ref",
+         "value": "Patient/QA-{{run}}-KEEP"
+        }
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+         "pm.test('Search total is 0', function () { pm.expect(pm.response.json().total).to.eql(0); });"
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "TC03 - New provider and facility are recorded",
+   "item": [
+    {
+     "name": "TC03 step 1 - Provider Registry sends a new-provider event",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{token_pr}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n \"resourceType\": \"AuditEvent\",\n \"extension\": [\n  {\n   \"url\": \"http://dhp.health.gov.lk/fhir/StructureDefinition/audit-event-uid\",\n   \"valueString\": \"{{u03a}}\"\n  }\n ],\n \"type\": {\n  \"system\": \"http://terminology.hl7.org/CodeSystem/audit-event-type\",\n  \"code\": \"rest\",\n  \"display\": \"RESTful Operation\"\n },\n \"action\": \"C\",\n \"recorded\": \"{{recorded}}\",\n \"outcome\": \"0\",\n \"purposeOfEvent\": [\n  {\n   \"coding\": [\n    {\n     \"system\": \"http://terminology.hl7.org/CodeSystem/v3-ActReason\",\n     \"code\": \"TREAT\"\n    }\n   ]\n  }\n ],\n \"agent\": [\n  {\n   \"who\": {\n    \"reference\": \"Practitioner/QA-{{run}}-ADMIN\"\n   },\n   \"requestor\": true\n  }\n ],\n \"source\": {\n  \"site\": \"Provider Registry (test)\",\n  \"observer\": {\n   \"reference\": \"Device/qa-{{run}}-pr\"\n  }\n },\n \"entity\": [\n  {\n   \"what\": {\n    \"reference\": \"Practitioner/QA-{{run}}-NEWPROV\"\n   }\n  }\n ],\n \"subtype\": [\n  {\n   \"system\": \"http://hl7.org/fhir/restful-interaction\",\n   \"code\": \"create\"\n  }\n ]\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "prerequest",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.collectionVariables.set('u03a', pm.variables.replaceIn('{{$guid}}'));"
+        ]
+       }
+      },
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('201 Created', function () { pm.response.to.have.status(201); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC03 step 1 - Facility Registry sends a new-facility event",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{token_fr}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n \"resourceType\": \"AuditEvent\",\n \"extension\": [\n  {\n   \"url\": \"http://dhp.health.gov.lk/fhir/StructureDefinition/audit-event-uid\",\n   \"valueString\": \"{{u03b}}\"\n  }\n ],\n \"type\": {\n  \"system\": \"http://terminology.hl7.org/CodeSystem/audit-event-type\",\n  \"code\": \"rest\",\n  \"display\": \"RESTful Operation\"\n },\n \"action\": \"C\",\n \"recorded\": \"{{recorded}}\",\n \"outcome\": \"0\",\n \"purposeOfEvent\": [\n  {\n   \"coding\": [\n    {\n     \"system\": \"http://terminology.hl7.org/CodeSystem/v3-ActReason\",\n     \"code\": \"TREAT\"\n    }\n   ]\n  }\n ],\n \"agent\": [\n  {\n   \"who\": {\n    \"reference\": \"Practitioner/QA-{{run}}-ADMIN\"\n   },\n   \"requestor\": true\n  }\n ],\n \"source\": {\n  \"site\": \"Facility Registry (test)\",\n  \"observer\": {\n   \"reference\": \"Device/qa-{{run}}-fr\"\n  }\n },\n \"entity\": [\n  {\n   \"what\": {\n    \"reference\": \"Organization/QA-{{run}}-NEWFAC\"\n   }\n  }\n ],\n \"subtype\": [\n  {\n   \"system\": \"http://hl7.org/fhir/restful-interaction\",\n   \"code\": \"create\"\n  }\n ]\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "prerequest",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.collectionVariables.set('u03b', pm.variables.replaceIn('{{$guid}}'));"
+        ]
+       }
+      },
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('201 Created', function () { pm.response.to.have.status(201); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC03 step 1 - found by the provider reference",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent?entity-ref=Practitioner/QA-{{run}}-NEWPROV",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ],
+       "query": [
+        {
+         "key": "entity-ref",
+         "value": "Practitioner/QA-{{run}}-NEWPROV"
+        }
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+         "pm.test('Search total is 1', function () { pm.expect(pm.response.json().total).to.eql(1); });",
+         "var b = pm.response.json(); if (b.entry && b.entry.length) { pm.collectionVariables.set('id03a', b.entry[0].resource.id); }"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC03 step 1 - found by the facility reference",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent?entity-ref=Organization/QA-{{run}}-NEWFAC",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ],
+       "query": [
+        {
+         "key": "entity-ref",
+         "value": "Organization/QA-{{run}}-NEWFAC"
+        }
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+         "pm.test('Search total is 1', function () { pm.expect(pm.response.json().total).to.eql(1); });",
+         "var b = pm.response.json(); if (b.entry && b.entry.length) { pm.collectionVariables.set('id03b', b.entry[0].resource.id); }"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC03 step 2 - provider record: create, who, when, source",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent/{{id03a}}",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent",
+        "{{id03a}}"
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "var e = pm.response.json();",
+         "pm.test('Action is create (C)', function () { pm.expect(e.action).to.eql('C'); });",
+         "pm.test('Who, when, source', function () { pm.expect(e.agent[0].who.reference).to.include('ADMIN'); pm.expect(e.recorded).to.be.a('string'); pm.expect(e.source.site).to.eql('Provider Registry (test)'); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC03 step 2 - facility record: create, who, when, source",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent/{{id03b}}",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent",
+        "{{id03b}}"
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "var e = pm.response.json();",
+         "pm.test('Action is create (C)', function () { pm.expect(e.action).to.eql('C'); });",
+         "pm.test('Who, when, source', function () { pm.expect(e.agent[0].who.reference).to.include('ADMIN'); pm.expect(e.recorded).to.be.a('string'); pm.expect(e.source.site).to.eql('Facility Registry (test)'); });"
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "TC04 - A stored record cannot be changed or deleted",
+   "item": [
+    {
+     "name": "TC04 step 1 - an audit record exists",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{token_cr}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n \"resourceType\": \"AuditEvent\",\n \"extension\": [\n  {\n   \"url\": \"http://dhp.health.gov.lk/fhir/StructureDefinition/audit-event-uid\",\n   \"valueString\": \"{{u05}}\"\n  }\n ],\n \"type\": {\n  \"system\": \"http://terminology.hl7.org/CodeSystem/audit-event-type\",\n  \"code\": \"rest\",\n  \"display\": \"RESTful Operation\"\n },\n \"action\": \"E\",\n \"recorded\": \"{{recorded}}\",\n \"outcome\": \"0\",\n \"purposeOfEvent\": [\n  {\n   \"coding\": [\n    {\n     \"system\": \"http://terminology.hl7.org/CodeSystem/v3-ActReason\",\n     \"code\": \"TREAT\"\n    }\n   ]\n  }\n ],\n \"agent\": [\n  {\n   \"who\": {\n    \"reference\": \"Practitioner/QA-{{run}}-DOC\"\n   },\n   \"requestor\": true\n  }\n ],\n \"source\": {\n  \"site\": \"Immutability test\",\n  \"observer\": {\n   \"reference\": \"Device/qa-{{run}}-imm\"\n  }\n },\n \"entity\": [\n  {\n   \"what\": {\n    \"reference\": \"Patient/QA-{{run}}-IMM\"\n   }\n  }\n ],\n \"subtype\": [\n  {\n   \"system\": \"http://hl7.org/fhir/restful-interaction\",\n   \"code\": \"operation\"\n  }\n ]\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "prerequest",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.collectionVariables.set('u05', pm.variables.replaceIn('{{$guid}}'));"
+        ]
+       }
+      },
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('201 Created', function () { pm.response.to.have.status(201); });",
+         "pm.collectionVariables.set('id05', pm.response.json().id);"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC04 step 1 - note its content",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent/{{id05}}",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent",
+        "{{id05}}"
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+         "pm.collectionVariables.set('before05', JSON.stringify(pm.response.json()));"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC04 step 2 - PUT with the Ministry auditor token",
+     "request": {
+      "method": "PUT",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent/{{id05}}",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent",
+        "{{id05}}"
+       ]
+      },
+      "description": "",
+      "body": {
+       "mode": "raw",
+       "raw": "{\"resourceType\":\"AuditEvent\",\"id\":\"{{id05}}\"}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 403', function () { pm.response.to.have.status(403); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC04 step 2 - PUT with the admin token",
+     "request": {
+      "method": "PUT",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{admin_token}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent/{{id05}}",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent",
+        "{{id05}}"
+       ]
+      },
+      "description": "",
+      "body": {
+       "mode": "raw",
+       "raw": "{\"resourceType\":\"AuditEvent\",\"id\":\"{{id05}}\"}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 403', function () { pm.response.to.have.status(403); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC04 step 2 - PUT with the token of the sending system",
+     "request": {
+      "method": "PUT",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{token_cr}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent/{{id05}}",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent",
+        "{{id05}}"
+       ]
+      },
+      "description": "",
+      "body": {
+       "mode": "raw",
+       "raw": "{\"resourceType\":\"AuditEvent\",\"id\":\"{{id05}}\"}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 403', function () { pm.response.to.have.status(403); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC04 step 2 - PATCH with the admin token",
+     "request": {
+      "method": "PATCH",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{admin_token}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json-patch+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent/{{id05}}",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent",
+        "{{id05}}"
+       ]
+      },
+      "description": "",
+      "body": {
+       "mode": "raw",
+       "raw": "[{\"op\":\"replace\",\"path\":\"/outcome\",\"value\":\"8\"}]",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('PATCH is refused (403 or 415)', function () { pm.expect([403, 415]).to.include(pm.response.code); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC04 step 2 - DELETE with the Ministry auditor token",
+     "request": {
+      "method": "DELETE",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent/{{id05}}",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent",
+        "{{id05}}"
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 403', function () { pm.response.to.have.status(403); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC04 step 2 - DELETE with the admin token",
+     "request": {
+      "method": "DELETE",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{admin_token}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent/{{id05}}",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent",
+        "{{id05}}"
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 403', function () { pm.response.to.have.status(403); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC04 step 2 - DELETE with the token of the sending system",
+     "request": {
+      "method": "DELETE",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{token_cr}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent/{{id05}}",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent",
+        "{{id05}}"
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 403', function () { pm.response.to.have.status(403); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC04 step 3 - the record is unchanged",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent/{{id05}}",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent",
+        "{{id05}}"
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+         "pm.test('Same content as in step 1', function () { pm.expect(JSON.stringify(pm.response.json())).to.eql(pm.collectionVariables.get('before05')); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC04 step 3 - the hash chain is still valid",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{admin_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/$verify-chain",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "$verify-chain"
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+         "pm.test('Chain valid', function () { var v = pm.response.json().parameter.find(function (x) { return x.name === 'valid'; }); pm.expect(v.valueBoolean).to.eql(true); });"
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "TC05 - Incomplete records: refused, or accepted and flagged",
+   "item": [
+    {
+     "name": "TC05 step 1-2 - no recorded time",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{token_cr}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n \"resourceType\": \"AuditEvent\",\n \"extension\": [\n  {\n   \"url\": \"http://dhp.health.gov.lk/fhir/StructureDefinition/audit-event-uid\",\n   \"valueString\": \"{{u07a}}\"\n  }\n ],\n \"type\": {\n  \"system\": \"http://terminology.hl7.org/CodeSystem/audit-event-type\",\n  \"code\": \"rest\",\n  \"display\": \"RESTful Operation\"\n },\n \"action\": \"E\",\n \"outcome\": \"0\",\n \"purposeOfEvent\": [\n  {\n   \"coding\": [\n    {\n     \"system\": \"http://terminology.hl7.org/CodeSystem/v3-ActReason\",\n     \"code\": \"TREAT\"\n    }\n   ]\n  }\n ],\n \"agent\": [\n  {\n   \"who\": {\n    \"reference\": \"Practitioner/QA-{{run}}-DOC\"\n   },\n   \"requestor\": true\n  }\n ],\n \"source\": {\n  \"site\": \"Validation test\",\n  \"observer\": {\n   \"reference\": \"Device/qa-{{run}}-val\"\n  }\n },\n \"entity\": [\n  {\n   \"what\": {\n    \"reference\": \"Patient/QA-{{run}}-VAL\"\n   }\n  }\n ],\n \"subtype\": [\n  {\n   \"system\": \"http://hl7.org/fhir/restful-interaction\",\n   \"code\": \"operation\"\n  }\n ]\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "prerequest",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.collectionVariables.set('u07a', pm.variables.replaceIn('{{$guid}}'));"
+        ]
+       }
+      },
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 422', function () { pm.response.to.have.status(422); });",
+         "pm.test('The message names the missing element (recorded)', function () { pm.expect(pm.response.text().toLowerCase()).to.include('recorded'); });",
+         "pm.test('Nothing stored for this uid', function () { pm.expect(pm.response.json().resourceType).to.eql('OperationOutcome'); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC05 step 1-2 - no agent",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{token_cr}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n \"resourceType\": \"AuditEvent\",\n \"extension\": [\n  {\n   \"url\": \"http://dhp.health.gov.lk/fhir/StructureDefinition/audit-event-uid\",\n   \"valueString\": \"{{u07b}}\"\n  }\n ],\n \"type\": {\n  \"system\": \"http://terminology.hl7.org/CodeSystem/audit-event-type\",\n  \"code\": \"rest\",\n  \"display\": \"RESTful Operation\"\n },\n \"action\": \"E\",\n \"recorded\": \"{{recorded}}\",\n \"outcome\": \"0\",\n \"purposeOfEvent\": [\n  {\n   \"coding\": [\n    {\n     \"system\": \"http://terminology.hl7.org/CodeSystem/v3-ActReason\",\n     \"code\": \"TREAT\"\n    }\n   ]\n  }\n ],\n \"source\": {\n  \"site\": \"Validation test\",\n  \"observer\": {\n   \"reference\": \"Device/qa-{{run}}-val\"\n  }\n },\n \"entity\": [\n  {\n   \"what\": {\n    \"reference\": \"Patient/QA-{{run}}-VAL\"\n   }\n  }\n ],\n \"subtype\": [\n  {\n   \"system\": \"http://hl7.org/fhir/restful-interaction\",\n   \"code\": \"operation\"\n  }\n ]\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "prerequest",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.collectionVariables.set('u07b', pm.variables.replaceIn('{{$guid}}'));"
+        ]
+       }
+      },
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 422', function () { pm.response.to.have.status(422); });",
+         "pm.test('The message names the missing element (agent)', function () { pm.expect(pm.response.text().toLowerCase()).to.include('agent'); });",
+         "pm.test('Nothing stored for this uid', function () { pm.expect(pm.response.json().resourceType).to.eql('OperationOutcome'); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC05 step 1-2 - no source observer",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{token_cr}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n \"resourceType\": \"AuditEvent\",\n \"extension\": [\n  {\n   \"url\": \"http://dhp.health.gov.lk/fhir/StructureDefinition/audit-event-uid\",\n   \"valueString\": \"{{u07c}}\"\n  }\n ],\n \"type\": {\n  \"system\": \"http://terminology.hl7.org/CodeSystem/audit-event-type\",\n  \"code\": \"rest\",\n  \"display\": \"RESTful Operation\"\n },\n \"action\": \"E\",\n \"recorded\": \"{{recorded}}\",\n \"outcome\": \"0\",\n \"purposeOfEvent\": [\n  {\n   \"coding\": [\n    {\n     \"system\": \"http://terminology.hl7.org/CodeSystem/v3-ActReason\",\n     \"code\": \"TREAT\"\n    }\n   ]\n  }\n ],\n \"agent\": [\n  {\n   \"who\": {\n    \"reference\": \"Practitioner/QA-{{run}}-DOC\"\n   },\n   \"requestor\": true\n  }\n ],\n \"source\": {\n  \"site\": \"Validation test\"\n },\n \"entity\": [\n  {\n   \"what\": {\n    \"reference\": \"Patient/QA-{{run}}-VAL\"\n   }\n  }\n ],\n \"subtype\": [\n  {\n   \"system\": \"http://hl7.org/fhir/restful-interaction\",\n   \"code\": \"operation\"\n  }\n ]\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "prerequest",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.collectionVariables.set('u07c', pm.variables.replaceIn('{{$guid}}'));"
+        ]
+       }
+      },
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 422', function () { pm.response.to.have.status(422); });",
+         "pm.test('The message names the missing element (observer)', function () { pm.expect(pm.response.text().toLowerCase()).to.include('observer'); });",
+         "pm.test('Nothing stored for this uid', function () { pm.expect(pm.response.json().resourceType).to.eql('OperationOutcome'); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC05 step 1-2 - no event type",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{token_cr}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n \"resourceType\": \"AuditEvent\",\n \"extension\": [\n  {\n   \"url\": \"http://dhp.health.gov.lk/fhir/StructureDefinition/audit-event-uid\",\n   \"valueString\": \"{{u07d}}\"\n  }\n ],\n \"action\": \"E\",\n \"recorded\": \"{{recorded}}\",\n \"outcome\": \"0\",\n \"purposeOfEvent\": [\n  {\n   \"coding\": [\n    {\n     \"system\": \"http://terminology.hl7.org/CodeSystem/v3-ActReason\",\n     \"code\": \"TREAT\"\n    }\n   ]\n  }\n ],\n \"agent\": [\n  {\n   \"who\": {\n    \"reference\": \"Practitioner/QA-{{run}}-DOC\"\n   },\n   \"requestor\": true\n  }\n ],\n \"source\": {\n  \"site\": \"Validation test\",\n  \"observer\": {\n   \"reference\": \"Device/qa-{{run}}-val\"\n  }\n },\n \"entity\": [\n  {\n   \"what\": {\n    \"reference\": \"Patient/QA-{{run}}-VAL\"\n   }\n  }\n ],\n \"subtype\": [\n  {\n   \"system\": \"http://hl7.org/fhir/restful-interaction\",\n   \"code\": \"operation\"\n  }\n ]\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "prerequest",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.collectionVariables.set('u07d', pm.variables.replaceIn('{{$guid}}'));"
+        ]
+       }
+      },
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 422', function () { pm.response.to.have.status(422); });",
+         "pm.test('The message names the missing element (type)', function () { pm.expect(pm.response.text().toLowerCase()).to.include('type'); });",
+         "pm.test('Nothing stored for this uid', function () { pm.expect(pm.response.json().resourceType).to.eql('OperationOutcome'); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC05 step 3 - no record exists for the rejected one (no recorded time)",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent?event-uid={{u07a}}",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ],
+       "query": [
+        {
+         "key": "event-uid",
+         "value": "{{u07a}}"
+        }
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+         "pm.test('Search total is 0', function () { pm.expect(pm.response.json().total).to.eql(0); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC05 step 3 - no record exists for the rejected one (no agent)",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent?event-uid={{u07b}}",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ],
+       "query": [
+        {
+         "key": "event-uid",
+         "value": "{{u07b}}"
+        }
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+         "pm.test('Search total is 0', function () { pm.expect(pm.response.json().total).to.eql(0); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC05 step 3 - no record exists for the rejected one (no source observer)",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent?event-uid={{u07c}}",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ],
+       "query": [
+        {
+         "key": "event-uid",
+         "value": "{{u07c}}"
+        }
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+         "pm.test('Search total is 0', function () { pm.expect(pm.response.json().total).to.eql(0); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC05 step 3 - no record exists for the rejected one (no event type)",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent?event-uid={{u07d}}",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ],
+       "query": [
+        {
+         "key": "event-uid",
+         "value": "{{u07d}}"
+        }
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+         "pm.test('Search total is 0', function () { pm.expect(pm.response.json().total).to.eql(0); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC05 step 4 - everything present but no purposeOfEvent",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{token_cr}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n \"resourceType\": \"AuditEvent\",\n \"extension\": [\n  {\n   \"url\": \"http://dhp.health.gov.lk/fhir/StructureDefinition/audit-event-uid\",\n   \"valueString\": \"{{u07e}}\"\n  }\n ],\n \"type\": {\n  \"system\": \"http://terminology.hl7.org/CodeSystem/audit-event-type\",\n  \"code\": \"rest\",\n  \"display\": \"RESTful Operation\"\n },\n \"action\": \"E\",\n \"recorded\": \"{{recorded}}\",\n \"outcome\": \"0\",\n \"agent\": [\n  {\n   \"who\": {\n    \"reference\": \"Practitioner/QA-{{run}}-DOC\"\n   },\n   \"requestor\": true\n  }\n ],\n \"source\": {\n  \"site\": \"Validation test\",\n  \"observer\": {\n   \"reference\": \"Device/qa-{{run}}-val\"\n  }\n },\n \"entity\": [\n  {\n   \"what\": {\n    \"reference\": \"Patient/QA-{{run}}-VAL\"\n   }\n  }\n ],\n \"subtype\": [\n  {\n   \"system\": \"http://hl7.org/fhir/restful-interaction\",\n   \"code\": \"operation\"\n  }\n ]\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "prerequest",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.collectionVariables.set('u07e', pm.variables.replaceIn('{{$guid}}'));"
+        ]
+       }
+      },
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('201 Created', function () { pm.response.to.have.status(201); });",
+         "pm.test('Warning is returned', function () { pm.expect(Number(pm.response.headers.get('X-Chester-BALP-Warning-Count'))).to.be.at.least(1); });",
+         "pm.test('Stored flagged policy-incomplete', function () { var t = (pm.response.json().meta.tag||[]).map(function (x) { return x.code; }); pm.expect(t).to.include('policy-incomplete'); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC05 step 4 - found with the incomplete flag (console Incomplete filter)",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent?_tag=https://akhester.com/chester/tags|policy-incomplete&event-uid={{u07e}}",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ],
+       "query": [
+        {
+         "key": "_tag",
+         "value": "https://akhester.com/chester/tags|policy-incomplete"
+        },
+        {
+         "key": "event-uid",
+         "value": "{{u07e}}"
+        }
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+         "pm.test('Search total is 1', function () { pm.expect(pm.response.json().total).to.eql(1); });"
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "TC06 - A disclosure to another facility is recorded",
+   "item": [
+    {
+     "name": "TC06 step 1 - source system sends a disclosure event (recipient + legal-basis)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{token_nehr}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n \"resourceType\": \"AuditEvent\",\n \"extension\": [\n  {\n   \"url\": \"http://dhp.health.gov.lk/fhir/StructureDefinition/audit-event-uid\",\n   \"valueString\": \"{{u08}}\"\n  }\n ],\n \"type\": {\n  \"system\": \"http://terminology.hl7.org/CodeSystem/audit-event-type\",\n  \"code\": \"rest\",\n  \"display\": \"RESTful Operation\"\n },\n \"action\": \"R\",\n \"recorded\": \"{{recorded}}\",\n \"outcome\": \"0\",\n \"purposeOfEvent\": [\n  {\n   \"coding\": [\n    {\n     \"system\": \"http://terminology.hl7.org/CodeSystem/v3-ActReason\",\n     \"code\": \"TREAT\"\n    }\n   ]\n  }\n ],\n \"agent\": [\n  {\n   \"who\": {\n    \"reference\": \"Practitioner/QA-{{run}}-DOC08\"\n   },\n   \"requestor\": true\n  }\n ],\n \"source\": {\n  \"site\": \"NEHR (test)\",\n  \"observer\": {\n   \"reference\": \"Device/qa-{{run}}-nehr\"\n  }\n },\n \"entity\": [\n  {\n   \"what\": {\n    \"reference\": \"Patient/QA-{{run}}-DISC\"\n   },\n   \"detail\": [\n    {\n     \"type\": \"report-type\",\n     \"valueString\": \"Lab report\"\n    },\n    {\n     \"type\": \"recipient\",\n     \"valueString\": \"Organization/QA-RECIPIENT-HOSPITAL\"\n    },\n    {\n     \"type\": \"legal-basis\",\n     \"valueString\": \"patient-consent\"\n    }\n   ]\n  }\n ],\n \"subtype\": [\n  {\n   \"system\": \"http://hl7.org/fhir/restful-interaction\",\n   \"code\": \"operation\"\n  }\n ]\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "prerequest",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.collectionVariables.set('u08', pm.variables.replaceIn('{{$guid}}'));"
+        ]
+       }
+      },
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('201 Created', function () { pm.response.to.have.status(201); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC06 step 2 - auditor finds the disclosure by patient",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent?entity-ref=Patient/QA-{{run}}-DISC",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ],
+       "query": [
+        {
+         "key": "entity-ref",
+         "value": "Patient/QA-{{run}}-DISC"
+        }
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+         "pm.test('Search total is 1', function () { pm.expect(pm.response.json().total).to.eql(1); });",
+         "var b = pm.response.json(); if (b.entry && b.entry.length) { pm.collectionVariables.set('id08', b.entry[0].resource.id); }"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC06 step 3 - record matches the notes (who, patient, kind, recipient, legal basis, time, outcome)",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent/{{id08}}",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent",
+        "{{id08}}"
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "var e = pm.response.json(); var d = {}; (e.entity[0].detail||[]).forEach(function (x) { d[x.type] = x.valueString; });",
+         "pm.test('Who shared', function () { pm.expect(e.agent[0].who.reference).to.include('DOC08'); });",
+         "pm.test('Patient, time, outcome', function () { pm.expect(e.entity[0].what.reference).to.include('-DISC'); pm.expect(e.recorded).to.be.a('string'); pm.expect(e.outcome).to.eql('0'); });",
+         "pm.test('Kind of record, not its content', function () { pm.expect(d['report-type']).to.eql('Lab report'); });",
+         "pm.test('Recipient and legal basis are in the details', function () { pm.expect(d['recipient']).to.eql('Organization/QA-RECIPIENT-HOSPITAL'); pm.expect(d['legal-basis']).to.eql('patient-consent'); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC06 note - a disclosure without recipient or legal basis is still accepted (not required in the MVP)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{token_nehr}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n \"resourceType\": \"AuditEvent\",\n \"extension\": [\n  {\n   \"url\": \"http://dhp.health.gov.lk/fhir/StructureDefinition/audit-event-uid\",\n   \"valueString\": \"{{u08b}}\"\n  }\n ],\n \"type\": {\n  \"system\": \"http://terminology.hl7.org/CodeSystem/audit-event-type\",\n  \"code\": \"rest\",\n  \"display\": \"RESTful Operation\"\n },\n \"action\": \"R\",\n \"recorded\": \"{{recorded}}\",\n \"outcome\": \"0\",\n \"purposeOfEvent\": [\n  {\n   \"coding\": [\n    {\n     \"system\": \"http://terminology.hl7.org/CodeSystem/v3-ActReason\",\n     \"code\": \"TREAT\"\n    }\n   ]\n  }\n ],\n \"agent\": [\n  {\n   \"who\": {\n    \"reference\": \"Practitioner/QA-{{run}}-DOC08\"\n   },\n   \"requestor\": true\n  }\n ],\n \"source\": {\n  \"site\": \"NEHR (test)\",\n  \"observer\": {\n   \"reference\": \"Device/qa-{{run}}-nehr\"\n  }\n },\n \"entity\": [\n  {\n   \"what\": {\n    \"reference\": \"Patient/QA-{{run}}-DISC2\"\n   }\n  }\n ],\n \"subtype\": [\n  {\n   \"system\": \"http://hl7.org/fhir/restful-interaction\",\n   \"code\": \"operation\"\n  }\n ]\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "prerequest",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.collectionVariables.set('u08b', pm.variables.replaceIn('{{$guid}}'));"
+        ]
+       }
+      },
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('201 Created', function () { pm.response.to.have.status(201); });"
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "TC07 - Search and filter",
+   "item": [
+    {
+     "name": "TC07 seed 1 - login event, Hospital A, user 1, visit 1 (now)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{token_cr}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n \"resourceType\": \"AuditEvent\",\n \"extension\": [\n  {\n   \"url\": \"http://dhp.health.gov.lk/fhir/StructureDefinition/audit-event-uid\",\n   \"valueString\": \"{{u09a}}\"\n  }\n ],\n \"type\": {\n  \"system\": \"http://terminology.hl7.org/CodeSystem/audit-event-type\",\n  \"code\": \"rest\",\n  \"display\": \"RESTful Operation\"\n },\n \"action\": \"E\",\n \"recorded\": \"{{recorded}}\",\n \"outcome\": \"0\",\n \"purposeOfEvent\": [\n  {\n   \"coding\": [\n    {\n     \"system\": \"http://terminology.hl7.org/CodeSystem/v3-ActReason\",\n     \"code\": \"TREAT\"\n    }\n   ]\n  }\n ],\n \"agent\": [\n  {\n   \"who\": {\n    \"reference\": \"Practitioner/QA-{{run}}-U1\"\n   },\n   \"requestor\": true\n  }\n ],\n \"source\": {\n  \"site\": \"QA-HOSP-A-{{run}}\",\n  \"observer\": {\n   \"reference\": \"Device/qa-{{run}}-a\"\n  }\n },\n \"entity\": [\n  {\n   \"what\": {\n    \"reference\": \"Patient/QA-{{run}}-S1\"\n   }\n  },\n  {\n   \"what\": {\n    \"reference\": \"Encounter/QA-{{run}}-V1\"\n   }\n  }\n ],\n \"subtype\": [\n  {\n   \"system\": \"http://dicom.nema.org/resources/ontology/DCM\",\n   \"code\": \"110122\"\n  }\n ]\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "prerequest",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.collectionVariables.set('u09a', pm.variables.replaceIn('{{$guid}}'));"
+        ]
+       }
+      },
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('201 Created', function () { pm.response.to.have.status(201); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC07 seed 2 - view event, Hospital B, user 2, visit 2 (10 days ago)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{token_nehr}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n \"resourceType\": \"AuditEvent\",\n \"extension\": [\n  {\n   \"url\": \"http://dhp.health.gov.lk/fhir/StructureDefinition/audit-event-uid\",\n   \"valueString\": \"{{u09b}}\"\n  }\n ],\n \"type\": {\n  \"system\": \"http://terminology.hl7.org/CodeSystem/audit-event-type\",\n  \"code\": \"rest\",\n  \"display\": \"RESTful Operation\"\n },\n \"action\": \"R\",\n \"recorded\": \"{{t09_10}}\",\n \"outcome\": \"0\",\n \"purposeOfEvent\": [\n  {\n   \"coding\": [\n    {\n     \"system\": \"http://terminology.hl7.org/CodeSystem/v3-ActReason\",\n     \"code\": \"TREAT\"\n    }\n   ]\n  }\n ],\n \"agent\": [\n  {\n   \"who\": {\n    \"reference\": \"Practitioner/QA-{{run}}-U2\"\n   },\n   \"requestor\": true\n  }\n ],\n \"source\": {\n  \"site\": \"QA-HOSP-B-{{run}}\",\n  \"observer\": {\n   \"reference\": \"Device/qa-{{run}}-b\"\n  }\n },\n \"entity\": [\n  {\n   \"what\": {\n    \"reference\": \"Patient/QA-{{run}}-S2\"\n   }\n  },\n  {\n   \"what\": {\n    \"reference\": \"Encounter/QA-{{run}}-V2\"\n   }\n  }\n ],\n \"subtype\": [\n  {\n   \"system\": \"http://hl7.org/fhir/restful-interaction\",\n   \"code\": \"read\"\n  }\n ]\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "prerequest",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.collectionVariables.set('u09b', pm.variables.replaceIn('{{$guid}}'));",
+         "pm.collectionVariables.set('t09_10', new Date(Date.now() - 10 * 86400000).toISOString().replace(/\\.\\d+Z$/, 'Z'));"
+        ]
+       }
+      },
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('201 Created', function () { pm.response.to.have.status(201); });",
+         "pm.collectionVariables.set('rec09b', pm.response.json().recorded);"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC07 seed 3 - change event, Hospital A, user 1, same patient as seed 2 (20 days ago)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{token_cr}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n \"resourceType\": \"AuditEvent\",\n \"extension\": [\n  {\n   \"url\": \"http://dhp.health.gov.lk/fhir/StructureDefinition/audit-event-uid\",\n   \"valueString\": \"{{u09c}}\"\n  }\n ],\n \"type\": {\n  \"system\": \"http://terminology.hl7.org/CodeSystem/audit-event-type\",\n  \"code\": \"rest\",\n  \"display\": \"RESTful Operation\"\n },\n \"action\": \"U\",\n \"recorded\": \"{{t09_20}}\",\n \"outcome\": \"0\",\n \"purposeOfEvent\": [\n  {\n   \"coding\": [\n    {\n     \"system\": \"http://terminology.hl7.org/CodeSystem/v3-ActReason\",\n     \"code\": \"TREAT\"\n    }\n   ]\n  }\n ],\n \"agent\": [\n  {\n   \"who\": {\n    \"reference\": \"Practitioner/QA-{{run}}-U1\"\n   },\n   \"requestor\": true\n  }\n ],\n \"source\": {\n  \"site\": \"QA-HOSP-A-{{run}}\",\n  \"observer\": {\n   \"reference\": \"Device/qa-{{run}}-a\"\n  }\n },\n \"entity\": [\n  {\n   \"what\": {\n    \"reference\": \"Patient/QA-{{run}}-S2\"\n   }\n  },\n  {\n   \"what\": {\n    \"reference\": \"Encounter/QA-{{run}}-V3\"\n   }\n  }\n ],\n \"subtype\": [\n  {\n   \"system\": \"http://hl7.org/fhir/restful-interaction\",\n   \"code\": \"update\"\n  }\n ]\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "prerequest",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.collectionVariables.set('u09c', pm.variables.replaceIn('{{$guid}}'));",
+         "pm.collectionVariables.set('t09_20', new Date(Date.now() - 20 * 86400000).toISOString().replace(/\\.\\d+Z$/, 'Z'));"
+        ]
+       }
+      },
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('201 Created', function () { pm.response.to.have.status(201); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC07 step 2 - by patient",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent?entity-ref=Patient/QA-{{run}}-S2",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ],
+       "query": [
+        {
+         "key": "entity-ref",
+         "value": "Patient/QA-{{run}}-S2"
+        }
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+         "pm.test('Search total is 2', function () { pm.expect(pm.response.json().total).to.eql(2); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC07 step 3 - by practitioner (user)",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent?agent-ref=Practitioner/QA-{{run}}-U1",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ],
+       "query": [
+        {
+         "key": "agent-ref",
+         "value": "Practitioner/QA-{{run}}-U1"
+        }
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+         "pm.test('Search total is 2', function () { pm.expect(pm.response.json().total).to.eql(2); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC07 step 4 - by date range (day of seed 2 only)",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent?date=ge{{t09_12d}}&date=le{{t09_8d}}&entity-ref=Patient/QA-{{run}}-S2",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ],
+       "query": [
+        {
+         "key": "date",
+         "value": "ge{{t09_12d}}"
+        },
+        {
+         "key": "date",
+         "value": "le{{t09_8d}}"
+        },
+        {
+         "key": "entity-ref",
+         "value": "Patient/QA-{{run}}-S2"
+        }
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "prerequest",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.collectionVariables.set('t09_12d', new Date(Date.now() - 12 * 86400000).toISOString().replace(/\\.\\d+Z$/, 'Z'));",
+         "pm.collectionVariables.set('t09_8d', new Date(Date.now() - 8 * 86400000).toISOString().replace(/\\.\\d+Z$/, 'Z'));"
+        ]
+       }
+      },
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+         "pm.test('Search total is 1', function () { pm.expect(pm.response.json().total).to.eql(1); });",
+         "pm.test('It is seed 2', function () { pm.expect(pm.response.json().entry[0].resource.entity[0].what.reference).to.include('-S2'); pm.expect(pm.response.json().entry[0].resource.action).to.eql('R'); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC07 step 4 - the first and last instant of the range are included",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent?date=ge{{rec09b}}&date=le{{rec09b}}&entity-ref=Patient/QA-{{run}}-S2",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ],
+       "query": [
+        {
+         "key": "date",
+         "value": "ge{{rec09b}}"
+        },
+        {
+         "key": "date",
+         "value": "le{{rec09b}}"
+        },
+        {
+         "key": "entity-ref",
+         "value": "Patient/QA-{{run}}-S2"
+        }
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+         "pm.test('Search total is 1', function () { pm.expect(pm.response.json().total).to.eql(1); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC07 step 5 - by transaction subtype (110122 login)",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent?subtype=110122&entity-ref=Patient/QA-{{run}}-S1",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ],
+       "query": [
+        {
+         "key": "subtype",
+         "value": "110122"
+        },
+        {
+         "key": "entity-ref",
+         "value": "Patient/QA-{{run}}-S1"
+        }
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+         "pm.test('Search total is 1', function () { pm.expect(pm.response.json().total).to.eql(1); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC07 step 5 - by action (Changed = U)",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent?action=U&entity-ref=Patient/QA-{{run}}-S2",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ],
+       "query": [
+        {
+         "key": "action",
+         "value": "U"
+        },
+        {
+         "key": "entity-ref",
+         "value": "Patient/QA-{{run}}-S2"
+        }
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+         "pm.test('Search total is 1', function () { pm.expect(pm.response.json().total).to.eql(1); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC07 step 5 - by type (rest) narrowed to this run",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent?type=rest&agent-ref=Practitioner/QA-{{run}}-U2",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ],
+       "query": [
+        {
+         "key": "type",
+         "value": "rest"
+        },
+        {
+         "key": "agent-ref",
+         "value": "Practitioner/QA-{{run}}-U2"
+        }
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+         "pm.test('Search total is 1', function () { pm.expect(pm.response.json().total).to.eql(1); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC07 step 6 - by source system (observer device)",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent?source-ref=Device/qa-{{run}}-a",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ],
+       "query": [
+        {
+         "key": "source-ref",
+         "value": "Device/qa-{{run}}-a"
+        }
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+         "pm.test('Search total is 2', function () { pm.expect(pm.response.json().total).to.eql(2); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC07 step 6 - by submitting client (Submitted by)",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent?_tag=https://akhester.com/chester/submitting-client|nehr&agent-ref=Practitioner/QA-{{run}}-U2",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ],
+       "query": [
+        {
+         "key": "_tag",
+         "value": "https://akhester.com/chester/submitting-client|nehr"
+        },
+        {
+         "key": "agent-ref",
+         "value": "Practitioner/QA-{{run}}-U2"
+        }
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+         "pm.test('Search total is 1', function () { pm.expect(pm.response.json().total).to.eql(1); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC07 step 6 - by facility / department (source site)",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent?site=QA-HOSP-B-{{run}}",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ],
+       "query": [
+        {
+         "key": "site",
+         "value": "QA-HOSP-B-{{run}}"
+        }
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+         "pm.test('Search total is 1', function () { pm.expect(pm.response.json().total).to.eql(1); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC07 step 7 - by visit (encounter)",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent?entity-ref=Encounter/QA-{{run}}-V2",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ],
+       "query": [
+        {
+         "key": "entity-ref",
+         "value": "Encounter/QA-{{run}}-V2"
+        }
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+         "pm.test('Search total is 1', function () { pm.expect(pm.response.json().total).to.eql(1); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC07 step 8 - patient and date range together",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent?entity-ref=Patient/QA-{{run}}-S2&date=ge{{t09_12d}}&date=le{{t09_8d}}",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ],
+       "query": [
+        {
+         "key": "entity-ref",
+         "value": "Patient/QA-{{run}}-S2"
+        },
+        {
+         "key": "date",
+         "value": "ge{{t09_12d}}"
+        },
+        {
+         "key": "date",
+         "value": "le{{t09_8d}}"
+        }
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+         "pm.test('Search total is 1', function () { pm.expect(pm.response.json().total).to.eql(1); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC07 step 9 - a patient with no history: 200 and total 0",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent?entity-ref=Patient/QA-{{run}}-NOBODY",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ],
+       "query": [
+        {
+         "key": "entity-ref",
+         "value": "Patient/QA-{{run}}-NOBODY"
+        }
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+         "pm.test('Search total is 0', function () { pm.expect(pm.response.json().total).to.eql(0); });"
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "TC08 - Many events at once",
+   "item": [
+    {
+     "name": "TC08 step 2 - send one event (repeats until tc10_n events are accepted; waits and resends on 503)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{tc10_token}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n \"resourceType\": \"AuditEvent\",\n \"extension\": [\n  {\n   \"url\": \"http://dhp.health.gov.lk/fhir/StructureDefinition/audit-event-uid\",\n   \"valueString\": \"{{u10}}\"\n  },\n  {\n   \"url\": \"http://dhp.health.gov.lk/fhir/StructureDefinition/correlation-id\",\n   \"valueString\": \"{{tc10_run}}-{{run}}\"\n  }\n ],\n \"type\": {\n  \"system\": \"http://terminology.hl7.org/CodeSystem/audit-event-type\",\n  \"code\": \"rest\",\n  \"display\": \"RESTful Operation\"\n },\n \"action\": \"E\",\n \"recorded\": \"{{recorded}}\",\n \"outcome\": \"0\",\n \"purposeOfEvent\": [\n  {\n   \"coding\": [\n    {\n     \"system\": \"http://terminology.hl7.org/CodeSystem/v3-ActReason\",\n     \"code\": \"TREAT\"\n    }\n   ]\n  }\n ],\n \"agent\": [\n  {\n   \"who\": {\n    \"reference\": \"Practitioner/QA-{{run}}-DOC\"\n   },\n   \"requestor\": true\n  }\n ],\n \"source\": {\n  \"site\": \"Load test\",\n  \"observer\": {\n   \"reference\": \"Device/qa-{{run}}-load\"\n  }\n },\n \"entity\": [\n  {\n   \"what\": {\n    \"reference\": \"Patient/QA-{{run}}-LOAD{{tc10_i}}\"\n   }\n  }\n ],\n \"subtype\": [\n  {\n   \"system\": \"http://hl7.org/fhir/restful-interaction\",\n   \"code\": \"operation\"\n  }\n ]\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "event": [
+      {
+       "listen": "prerequest",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "var i = parseInt(pm.collectionVariables.get('tc10_i') || '0');",
+         "if (!pm.collectionVariables.get('tc10_retry')) { pm.collectionVariables.set('u10', pm.variables.replaceIn('{{$guid}}')); }",
+         "var l = JSON.parse(pm.collectionVariables.get('tc10_uids') || '[]'); if (l.indexOf(pm.collectionVariables.get('u10')) < 0) { l.push(pm.collectionVariables.get('u10')); pm.collectionVariables.set('tc10_uids', JSON.stringify(l)); }"
+        ]
+       }
+      },
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "var code = pm.response.code; var n = parseInt(pm.variables.get('tc10_n') || '20'); var i = parseInt(pm.collectionVariables.get('tc10_i') || '0');",
+         "if (code === 503) { pm.collectionVariables.set('tc10_retry', '1'); pm.collectionVariables.set('tc10_503', String(parseInt(pm.collectionVariables.get('tc10_503') || '0') + 1)); pm.test('Chester asked to wait (Retry-After present)', function () { pm.expect(pm.response.headers.get('Retry-After')).to.be.ok; }); postman.setNextRequest(pm.info.requestName); }",
+         "else { pm.collectionVariables.unset('tc10_retry'); pm.test('Event accepted (201)', function () { pm.expect(code).to.eql(201); }); i += 1; pm.collectionVariables.set('tc10_i', String(i)); if (i < n) { postman.setNextRequest(pm.info.requestName); } }"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC08 step 3 - count the records stored for this batch",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent?correlation-id={{tc10_run}}-{{run}}&_summary=count",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ],
+       "query": [
+        {
+         "key": "correlation-id",
+         "value": "{{tc10_run}}-{{run}}"
+        },
+        {
+         "key": "_summary",
+         "value": "count"
+        }
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+         "pm.test('Stored count equals the number sent', function () { pm.expect(pm.response.json().total).to.eql(parseInt(pm.variables.get('tc10_n') || '20')); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC08 step 4 - each submitted uid appears exactly once",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent?correlation-id={{tc10_run}}-{{run}}&_count=100",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ],
+       "query": [
+        {
+         "key": "correlation-id",
+         "value": "{{tc10_run}}-{{run}}"
+        },
+        {
+         "key": "_count",
+         "value": "100"
+        }
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+         "var uids = JSON.parse(pm.collectionVariables.get('tc10_uids') || '[]'); var seen = {};",
+         "pm.test('One record per uid, none missing, none duplicated', function () { (pm.response.json().entry||[]).forEach(function (en) { en.resource.extension.forEach(function (x) { if (x.url.endsWith('audit-event-uid')) { seen[x.valueString] = (seen[x.valueString] || 0) + 1; } }); }); pm.expect(Object.keys(seen).length).to.eql(uids.length); uids.forEach(function (u) { pm.expect(seen[u]).to.eql(1); }); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC08 step 4 - the hash chain is valid",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{admin_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/$verify-chain",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "$verify-chain"
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+         "pm.test('Chain valid', function () { var v = pm.response.json().parameter.find(function (x) { return x.name === 'valid'; }); pm.expect(v.valueBoolean).to.eql(true); });"
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "TC09 - Events are shown in time order",
+   "item": [
+    {
+     "name": "TC09 step 1 - Registries sends an event (4 minutes ago)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{token_cr}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n \"resourceType\": \"AuditEvent\",\n \"extension\": [\n  {\n   \"url\": \"http://dhp.health.gov.lk/fhir/StructureDefinition/audit-event-uid\",\n   \"valueString\": \"{{u20a}}\"\n  }\n ],\n \"type\": {\n  \"system\": \"http://terminology.hl7.org/CodeSystem/audit-event-type\",\n  \"code\": \"rest\",\n  \"display\": \"RESTful Operation\"\n },\n \"action\": \"E\",\n \"recorded\": \"{{t20a}}\",\n \"outcome\": \"0\",\n \"purposeOfEvent\": [\n  {\n   \"coding\": [\n    {\n     \"system\": \"http://terminology.hl7.org/CodeSystem/v3-ActReason\",\n     \"code\": \"TREAT\"\n    }\n   ]\n  }\n ],\n \"agent\": [\n  {\n   \"who\": {\n    \"reference\": \"Practitioner/QA-{{run}}-DOC\"\n   },\n   \"requestor\": true\n  }\n ],\n \"source\": {\n  \"site\": \"Registries (test)\",\n  \"observer\": {\n   \"reference\": \"Device/qa-{{run}}-t1\"\n  }\n },\n \"entity\": [\n  {\n   \"what\": {\n    \"reference\": \"Patient/QA-{{run}}-TIME\"\n   }\n  }\n ],\n \"subtype\": [\n  {\n   \"system\": \"http://hl7.org/fhir/restful-interaction\",\n   \"code\": \"operation\"\n  }\n ]\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "prerequest",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.collectionVariables.set('u20a', pm.variables.replaceIn('{{$guid}}'));",
+         "pm.collectionVariables.set('t20a', new Date(Date.now() - 240000).toISOString().replace(/\\.\\d+Z$/, 'Z'));"
+        ]
+       }
+      },
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('201 Created', function () { pm.response.to.have.status(201); });",
+         "pm.collectionVariables.set('lm20a', pm.response.json().meta.lastUpdated);"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC09 step 1 - NEHR sends an event (3 minutes ago)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{token_nehr}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n \"resourceType\": \"AuditEvent\",\n \"extension\": [\n  {\n   \"url\": \"http://dhp.health.gov.lk/fhir/StructureDefinition/audit-event-uid\",\n   \"valueString\": \"{{u20b}}\"\n  }\n ],\n \"type\": {\n  \"system\": \"http://terminology.hl7.org/CodeSystem/audit-event-type\",\n  \"code\": \"rest\",\n  \"display\": \"RESTful Operation\"\n },\n \"action\": \"E\",\n \"recorded\": \"{{t20b}}\",\n \"outcome\": \"0\",\n \"purposeOfEvent\": [\n  {\n   \"coding\": [\n    {\n     \"system\": \"http://terminology.hl7.org/CodeSystem/v3-ActReason\",\n     \"code\": \"TREAT\"\n    }\n   ]\n  }\n ],\n \"agent\": [\n  {\n   \"who\": {\n    \"reference\": \"Practitioner/QA-{{run}}-DOC\"\n   },\n   \"requestor\": true\n  }\n ],\n \"source\": {\n  \"site\": \"NEHR (test)\",\n  \"observer\": {\n   \"reference\": \"Device/qa-{{run}}-t2\"\n  }\n },\n \"entity\": [\n  {\n   \"what\": {\n    \"reference\": \"Patient/QA-{{run}}-TIME\"\n   }\n  }\n ],\n \"subtype\": [\n  {\n   \"system\": \"http://hl7.org/fhir/restful-interaction\",\n   \"code\": \"operation\"\n  }\n ]\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "prerequest",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.collectionVariables.set('u20b', pm.variables.replaceIn('{{$guid}}'));",
+         "pm.collectionVariables.set('t20b', new Date(Date.now() - 180000).toISOString().replace(/\\.\\d+Z$/, 'Z'));"
+        ]
+       }
+      },
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('201 Created', function () { pm.response.to.have.status(201); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC09 step 1 - e-Referral sends an event (2 minutes ago)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{token_ereferral}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n \"resourceType\": \"AuditEvent\",\n \"extension\": [\n  {\n   \"url\": \"http://dhp.health.gov.lk/fhir/StructureDefinition/audit-event-uid\",\n   \"valueString\": \"{{u20c}}\"\n  }\n ],\n \"type\": {\n  \"system\": \"http://terminology.hl7.org/CodeSystem/audit-event-type\",\n  \"code\": \"rest\",\n  \"display\": \"RESTful Operation\"\n },\n \"action\": \"E\",\n \"recorded\": \"{{t20c}}\",\n \"outcome\": \"0\",\n \"purposeOfEvent\": [\n  {\n   \"coding\": [\n    {\n     \"system\": \"http://terminology.hl7.org/CodeSystem/v3-ActReason\",\n     \"code\": \"TREAT\"\n    }\n   ]\n  }\n ],\n \"agent\": [\n  {\n   \"who\": {\n    \"reference\": \"Practitioner/QA-{{run}}-DOC\"\n   },\n   \"requestor\": true\n  }\n ],\n \"source\": {\n  \"site\": \"e-Referral (test)\",\n  \"observer\": {\n   \"reference\": \"Device/qa-{{run}}-t3\"\n  }\n },\n \"entity\": [\n  {\n   \"what\": {\n    \"reference\": \"Patient/QA-{{run}}-TIME\"\n   }\n  }\n ],\n \"subtype\": [\n  {\n   \"system\": \"http://hl7.org/fhir/restful-interaction\",\n   \"code\": \"operation\"\n  }\n ]\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "prerequest",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.collectionVariables.set('u20c', pm.variables.replaceIn('{{$guid}}'));",
+         "pm.collectionVariables.set('t20c', new Date(Date.now() - 120000).toISOString().replace(/\\.\\d+Z$/, 'Z'));"
+        ]
+       }
+      },
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('201 Created', function () { pm.response.to.have.status(201); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC09 step 2-3 - sorted by time, in the order sent; each time equals the time sent",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent?entity-ref=Patient/QA-{{run}}-TIME&_sort=date",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ],
+       "query": [
+        {
+         "key": "entity-ref",
+         "value": "Patient/QA-{{run}}-TIME"
+        },
+        {
+         "key": "_sort",
+         "value": "date"
+        }
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+         "pm.test('Search total is 3', function () { pm.expect(pm.response.json().total).to.eql(3); });",
+         "pm.test('Order: Registries, NEHR, e-Referral', function () { var s = pm.response.json().entry.map(function (x) { return x.resource.source.site; }); pm.expect(s).to.eql(['Registries (test)', 'NEHR (test)', 'e-Referral (test)']); });",
+         "pm.test('Step 3: each recorded time equals the time sent', function () { var r = pm.response.json().entry.map(function (x) { return x.resource.recorded; }); pm.expect(r).to.eql([pm.collectionVariables.get('t20a'), pm.collectionVariables.get('t20b'), pm.collectionVariables.get('t20c')]); });",
+         "pm.test('Step 3: Chester received time is within a few seconds of the recorded time for an online sender (the sender clock here is the test machine)', function () { var e = pm.response.json().entry[2].resource; pm.expect(Math.abs(new Date(e.meta.lastUpdated) - new Date(e.recorded))).to.be.below(180000 + 10000); });"
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "TC10 - Requests without a valid token are refused",
+   "item": [
+    {
+     "name": "TC10 step 1 - no token",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n \"resourceType\": \"AuditEvent\",\n \"extension\": [\n  {\n   \"url\": \"http://dhp.health.gov.lk/fhir/StructureDefinition/audit-event-uid\",\n   \"valueString\": \"{{u33}}\"\n  }\n ],\n \"type\": {\n  \"system\": \"http://terminology.hl7.org/CodeSystem/audit-event-type\",\n  \"code\": \"rest\",\n  \"display\": \"RESTful Operation\"\n },\n \"action\": \"E\",\n \"recorded\": \"{{recorded}}\",\n \"outcome\": \"0\",\n \"purposeOfEvent\": [\n  {\n   \"coding\": [\n    {\n     \"system\": \"http://terminology.hl7.org/CodeSystem/v3-ActReason\",\n     \"code\": \"TREAT\"\n    }\n   ]\n  }\n ],\n \"agent\": [\n  {\n   \"who\": {\n    \"reference\": \"Practitioner/QA-{{run}}-DOC\"\n   },\n   \"requestor\": true\n  }\n ],\n \"source\": {\n  \"site\": \"Negative test\",\n  \"observer\": {\n   \"reference\": \"Device/qa-{{run}}-neg\"\n  }\n },\n \"entity\": [\n  {\n   \"what\": {\n    \"reference\": \"Patient/QA-{{run}}-NEG\"\n   }\n  }\n ],\n \"subtype\": [\n  {\n   \"system\": \"http://hl7.org/fhir/restful-interaction\",\n   \"code\": \"operation\"\n  }\n ]\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "prerequest",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.collectionVariables.set('u33', pm.variables.replaceIn('{{$guid}}'));"
+        ]
+       }
+      },
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 401', function () { pm.response.to.have.status(401); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC10 step 1 - garbage token",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer not-a-real-token"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n \"resourceType\": \"AuditEvent\",\n \"extension\": [\n  {\n   \"url\": \"http://dhp.health.gov.lk/fhir/StructureDefinition/audit-event-uid\",\n   \"valueString\": \"{{u33}}\"\n  }\n ],\n \"type\": {\n  \"system\": \"http://terminology.hl7.org/CodeSystem/audit-event-type\",\n  \"code\": \"rest\",\n  \"display\": \"RESTful Operation\"\n },\n \"action\": \"E\",\n \"recorded\": \"{{recorded}}\",\n \"outcome\": \"0\",\n \"purposeOfEvent\": [\n  {\n   \"coding\": [\n    {\n     \"system\": \"http://terminology.hl7.org/CodeSystem/v3-ActReason\",\n     \"code\": \"TREAT\"\n    }\n   ]\n  }\n ],\n \"agent\": [\n  {\n   \"who\": {\n    \"reference\": \"Practitioner/QA-{{run}}-DOC\"\n   },\n   \"requestor\": true\n  }\n ],\n \"source\": {\n  \"site\": \"Negative test\",\n  \"observer\": {\n   \"reference\": \"Device/qa-{{run}}-neg\"\n  }\n },\n \"entity\": [\n  {\n   \"what\": {\n    \"reference\": \"Patient/QA-{{run}}-NEG\"\n   }\n  }\n ],\n \"subtype\": [\n  {\n   \"system\": \"http://hl7.org/fhir/restful-interaction\",\n   \"code\": \"operation\"\n  }\n ]\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 401', function () { pm.response.to.have.status(401); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC10 step 1 - tampered token (signature changed)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{tampered_token}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n \"resourceType\": \"AuditEvent\",\n \"extension\": [\n  {\n   \"url\": \"http://dhp.health.gov.lk/fhir/StructureDefinition/audit-event-uid\",\n   \"valueString\": \"{{u33}}\"\n  }\n ],\n \"type\": {\n  \"system\": \"http://terminology.hl7.org/CodeSystem/audit-event-type\",\n  \"code\": \"rest\",\n  \"display\": \"RESTful Operation\"\n },\n \"action\": \"E\",\n \"recorded\": \"{{recorded}}\",\n \"outcome\": \"0\",\n \"purposeOfEvent\": [\n  {\n   \"coding\": [\n    {\n     \"system\": \"http://terminology.hl7.org/CodeSystem/v3-ActReason\",\n     \"code\": \"TREAT\"\n    }\n   ]\n  }\n ],\n \"agent\": [\n  {\n   \"who\": {\n    \"reference\": \"Practitioner/QA-{{run}}-DOC\"\n   },\n   \"requestor\": true\n  }\n ],\n \"source\": {\n  \"site\": \"Negative test\",\n  \"observer\": {\n   \"reference\": \"Device/qa-{{run}}-neg\"\n  }\n },\n \"entity\": [\n  {\n   \"what\": {\n    \"reference\": \"Patient/QA-{{run}}-NEG\"\n   }\n  }\n ],\n \"subtype\": [\n  {\n   \"system\": \"http://hl7.org/fhir/restful-interaction\",\n   \"code\": \"operation\"\n  }\n ]\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 401', function () { pm.response.to.have.status(401); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC10 step 1 - expired token",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{expired_token}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n \"resourceType\": \"AuditEvent\",\n \"extension\": [\n  {\n   \"url\": \"http://dhp.health.gov.lk/fhir/StructureDefinition/audit-event-uid\",\n   \"valueString\": \"{{u33}}\"\n  }\n ],\n \"type\": {\n  \"system\": \"http://terminology.hl7.org/CodeSystem/audit-event-type\",\n  \"code\": \"rest\",\n  \"display\": \"RESTful Operation\"\n },\n \"action\": \"E\",\n \"recorded\": \"{{recorded}}\",\n \"outcome\": \"0\",\n \"purposeOfEvent\": [\n  {\n   \"coding\": [\n    {\n     \"system\": \"http://terminology.hl7.org/CodeSystem/v3-ActReason\",\n     \"code\": \"TREAT\"\n    }\n   ]\n  }\n ],\n \"agent\": [\n  {\n   \"who\": {\n    \"reference\": \"Practitioner/QA-{{run}}-DOC\"\n   },\n   \"requestor\": true\n  }\n ],\n \"source\": {\n  \"site\": \"Negative test\",\n  \"observer\": {\n   \"reference\": \"Device/qa-{{run}}-neg\"\n  }\n },\n \"entity\": [\n  {\n   \"what\": {\n    \"reference\": \"Patient/QA-{{run}}-NEG\"\n   }\n  }\n ],\n \"subtype\": [\n  {\n   \"system\": \"http://hl7.org/fhir/restful-interaction\",\n   \"code\": \"operation\"\n  }\n ]\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 401', function () { pm.response.to.have.status(401); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC10 step 1 - token for another API (wrong audience)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{wrong_audience_token}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n \"resourceType\": \"AuditEvent\",\n \"extension\": [\n  {\n   \"url\": \"http://dhp.health.gov.lk/fhir/StructureDefinition/audit-event-uid\",\n   \"valueString\": \"{{u33}}\"\n  }\n ],\n \"type\": {\n  \"system\": \"http://terminology.hl7.org/CodeSystem/audit-event-type\",\n  \"code\": \"rest\",\n  \"display\": \"RESTful Operation\"\n },\n \"action\": \"E\",\n \"recorded\": \"{{recorded}}\",\n \"outcome\": \"0\",\n \"purposeOfEvent\": [\n  {\n   \"coding\": [\n    {\n     \"system\": \"http://terminology.hl7.org/CodeSystem/v3-ActReason\",\n     \"code\": \"TREAT\"\n    }\n   ]\n  }\n ],\n \"agent\": [\n  {\n   \"who\": {\n    \"reference\": \"Practitioner/QA-{{run}}-DOC\"\n   },\n   \"requestor\": true\n  }\n ],\n \"source\": {\n  \"site\": \"Negative test\",\n  \"observer\": {\n   \"reference\": \"Device/qa-{{run}}-neg\"\n  }\n },\n \"entity\": [\n  {\n   \"what\": {\n    \"reference\": \"Patient/QA-{{run}}-NEG\"\n   }\n  }\n ],\n \"subtype\": [\n  {\n   \"system\": \"http://hl7.org/fhir/restful-interaction\",\n   \"code\": \"operation\"\n  }\n ]\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 401', function () { pm.response.to.have.status(401); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC10 step 1 - token from another issuer",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{wrong_issuer_token}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n \"resourceType\": \"AuditEvent\",\n \"extension\": [\n  {\n   \"url\": \"http://dhp.health.gov.lk/fhir/StructureDefinition/audit-event-uid\",\n   \"valueString\": \"{{u33}}\"\n  }\n ],\n \"type\": {\n  \"system\": \"http://terminology.hl7.org/CodeSystem/audit-event-type\",\n  \"code\": \"rest\",\n  \"display\": \"RESTful Operation\"\n },\n \"action\": \"E\",\n \"recorded\": \"{{recorded}}\",\n \"outcome\": \"0\",\n \"purposeOfEvent\": [\n  {\n   \"coding\": [\n    {\n     \"system\": \"http://terminology.hl7.org/CodeSystem/v3-ActReason\",\n     \"code\": \"TREAT\"\n    }\n   ]\n  }\n ],\n \"agent\": [\n  {\n   \"who\": {\n    \"reference\": \"Practitioner/QA-{{run}}-DOC\"\n   },\n   \"requestor\": true\n  }\n ],\n \"source\": {\n  \"site\": \"Negative test\",\n  \"observer\": {\n   \"reference\": \"Device/qa-{{run}}-neg\"\n  }\n },\n \"entity\": [\n  {\n   \"what\": {\n    \"reference\": \"Patient/QA-{{run}}-NEG\"\n   }\n  }\n ],\n \"subtype\": [\n  {\n   \"system\": \"http://hl7.org/fhir/restful-interaction\",\n   \"code\": \"operation\"\n  }\n ]\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 401', function () { pm.response.to.have.status(401); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC10 step 2 - nothing was stored for any of them",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent?event-uid={{u33}}",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ],
+       "query": [
+        {
+         "key": "event-uid",
+         "value": "{{u33}}"
+        }
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+         "pm.test('Search total is 0', function () { pm.expect(pm.response.json().total).to.eql(0); });"
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "TC11 - Only a sending system can write",
+   "item": [
+    {
+     "name": "TC11 step 1 - Ministry auditor (read role) tries to write",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n \"resourceType\": \"AuditEvent\",\n \"extension\": [\n  {\n   \"url\": \"http://dhp.health.gov.lk/fhir/StructureDefinition/audit-event-uid\",\n   \"valueString\": \"{{u34}}\"\n  }\n ],\n \"type\": {\n  \"system\": \"http://terminology.hl7.org/CodeSystem/audit-event-type\",\n  \"code\": \"rest\",\n  \"display\": \"RESTful Operation\"\n },\n \"action\": \"E\",\n \"recorded\": \"{{recorded}}\",\n \"outcome\": \"0\",\n \"purposeOfEvent\": [\n  {\n   \"coding\": [\n    {\n     \"system\": \"http://terminology.hl7.org/CodeSystem/v3-ActReason\",\n     \"code\": \"TREAT\"\n    }\n   ]\n  }\n ],\n \"agent\": [\n  {\n   \"who\": {\n    \"reference\": \"Practitioner/QA-{{run}}-DOC\"\n   },\n   \"requestor\": true\n  }\n ],\n \"source\": {\n  \"site\": \"Negative test\",\n  \"observer\": {\n   \"reference\": \"Device/qa-{{run}}-neg\"\n  }\n },\n \"entity\": [\n  {\n   \"what\": {\n    \"reference\": \"Patient/QA-{{run}}-NEG\"\n   }\n  }\n ],\n \"subtype\": [\n  {\n   \"system\": \"http://hl7.org/fhir/restful-interaction\",\n   \"code\": \"operation\"\n  }\n ]\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "prerequest",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.collectionVariables.set('u34', pm.variables.replaceIn('{{$guid}}'));"
+        ]
+       }
+      },
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 403', function () { pm.response.to.have.status(403); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC11 step 1 - break-glass reviewer tries to write",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{btg_token}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n \"resourceType\": \"AuditEvent\",\n \"extension\": [\n  {\n   \"url\": \"http://dhp.health.gov.lk/fhir/StructureDefinition/audit-event-uid\",\n   \"valueString\": \"{{u34}}\"\n  }\n ],\n \"type\": {\n  \"system\": \"http://terminology.hl7.org/CodeSystem/audit-event-type\",\n  \"code\": \"rest\",\n  \"display\": \"RESTful Operation\"\n },\n \"action\": \"E\",\n \"recorded\": \"{{recorded}}\",\n \"outcome\": \"0\",\n \"purposeOfEvent\": [\n  {\n   \"coding\": [\n    {\n     \"system\": \"http://terminology.hl7.org/CodeSystem/v3-ActReason\",\n     \"code\": \"TREAT\"\n    }\n   ]\n  }\n ],\n \"agent\": [\n  {\n   \"who\": {\n    \"reference\": \"Practitioner/QA-{{run}}-DOC\"\n   },\n   \"requestor\": true\n  }\n ],\n \"source\": {\n  \"site\": \"Negative test\",\n  \"observer\": {\n   \"reference\": \"Device/qa-{{run}}-neg\"\n  }\n },\n \"entity\": [\n  {\n   \"what\": {\n    \"reference\": \"Patient/QA-{{run}}-NEG\"\n   }\n  }\n ],\n \"subtype\": [\n  {\n   \"system\": \"http://hl7.org/fhir/restful-interaction\",\n   \"code\": \"operation\"\n  }\n ]\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 403', function () { pm.response.to.have.status(403); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC11 step 1 - token with both writer and reader roles",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{writer_reader_token}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n \"resourceType\": \"AuditEvent\",\n \"extension\": [\n  {\n   \"url\": \"http://dhp.health.gov.lk/fhir/StructureDefinition/audit-event-uid\",\n   \"valueString\": \"{{u34}}\"\n  }\n ],\n \"type\": {\n  \"system\": \"http://terminology.hl7.org/CodeSystem/audit-event-type\",\n  \"code\": \"rest\",\n  \"display\": \"RESTful Operation\"\n },\n \"action\": \"E\",\n \"recorded\": \"{{recorded}}\",\n \"outcome\": \"0\",\n \"purposeOfEvent\": [\n  {\n   \"coding\": [\n    {\n     \"system\": \"http://terminology.hl7.org/CodeSystem/v3-ActReason\",\n     \"code\": \"TREAT\"\n    }\n   ]\n  }\n ],\n \"agent\": [\n  {\n   \"who\": {\n    \"reference\": \"Practitioner/QA-{{run}}-DOC\"\n   },\n   \"requestor\": true\n  }\n ],\n \"source\": {\n  \"site\": \"Negative test\",\n  \"observer\": {\n   \"reference\": \"Device/qa-{{run}}-neg\"\n  }\n },\n \"entity\": [\n  {\n   \"what\": {\n    \"reference\": \"Patient/QA-{{run}}-NEG\"\n   }\n  }\n ],\n \"subtype\": [\n  {\n   \"system\": \"http://hl7.org/fhir/restful-interaction\",\n   \"code\": \"operation\"\n  }\n ]\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 403', function () { pm.response.to.have.status(403); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC11 step 2 - nothing was stored",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent?event-uid={{u34}}",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ],
+       "query": [
+        {
+         "key": "event-uid",
+         "value": "{{u34}}"
+        }
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+         "pm.test('Search total is 0', function () { pm.expect(pm.response.json().total).to.eql(0); });"
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "TC12 - A sending system cannot read audit records",
+   "item": [
+    {
+     "name": "TC12 setup - an event exists",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{token_cr}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n \"resourceType\": \"AuditEvent\",\n \"extension\": [\n  {\n   \"url\": \"http://dhp.health.gov.lk/fhir/StructureDefinition/audit-event-uid\",\n   \"valueString\": \"{{u35}}\"\n  }\n ],\n \"type\": {\n  \"system\": \"http://terminology.hl7.org/CodeSystem/audit-event-type\",\n  \"code\": \"rest\",\n  \"display\": \"RESTful Operation\"\n },\n \"action\": \"E\",\n \"recorded\": \"{{recorded}}\",\n \"outcome\": \"0\",\n \"purposeOfEvent\": [\n  {\n   \"coding\": [\n    {\n     \"system\": \"http://terminology.hl7.org/CodeSystem/v3-ActReason\",\n     \"code\": \"TREAT\"\n    }\n   ]\n  }\n ],\n \"agent\": [\n  {\n   \"who\": {\n    \"reference\": \"Practitioner/QA-{{run}}-DOC\"\n   },\n   \"requestor\": true\n  }\n ],\n \"source\": {\n  \"site\": \"Negative test\",\n  \"observer\": {\n   \"reference\": \"Device/qa-{{run}}-neg\"\n  }\n },\n \"entity\": [\n  {\n   \"what\": {\n    \"reference\": \"Patient/QA-{{run}}-NEG\"\n   }\n  }\n ],\n \"subtype\": [\n  {\n   \"system\": \"http://hl7.org/fhir/restful-interaction\",\n   \"code\": \"operation\"\n  }\n ]\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "prerequest",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.collectionVariables.set('u35', pm.variables.replaceIn('{{$guid}}'));"
+        ]
+       }
+      },
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('201 Created', function () { pm.response.to.have.status(201); });",
+         "pm.collectionVariables.set('u35_id', pm.response.json().id);"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC12 step 1 - sending system tries to search",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{token_cr}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent?event-uid={{u35}}",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ],
+       "query": [
+        {
+         "key": "event-uid",
+         "value": "{{u35}}"
+        }
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 403', function () { pm.response.to.have.status(403); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC12 step 1 - sending system tries to count",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{token_cr}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent?_summary=count",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ],
+       "query": [
+        {
+         "key": "_summary",
+         "value": "count"
+        }
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 403', function () { pm.response.to.have.status(403); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC12 step 1 - sending system tries to read by id",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{token_cr}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent/{{u35_id}}",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent",
+        "{{u35_id}}"
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 403', function () { pm.response.to.have.status(403); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC12 step 2 - the auditor can still read it",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent/{{u35_id}}",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent",
+        "{{u35_id}}"
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });"
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "TC13 - A facility auditor sees only their own facility",
+   "item": [
+    {
+     "name": "TC13 setup - an event from facility FAC-0001",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{token_cr}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n \"resourceType\": \"AuditEvent\",\n \"extension\": [\n  {\n   \"url\": \"http://dhp.health.gov.lk/fhir/StructureDefinition/audit-event-uid\",\n   \"valueString\": \"{{u36}}\"\n  }\n ],\n \"type\": {\n  \"system\": \"http://terminology.hl7.org/CodeSystem/audit-event-type\",\n  \"code\": \"rest\",\n  \"display\": \"RESTful Operation\"\n },\n \"action\": \"E\",\n \"recorded\": \"{{recorded}}\",\n \"outcome\": \"0\",\n \"purposeOfEvent\": [\n  {\n   \"coding\": [\n    {\n     \"system\": \"http://terminology.hl7.org/CodeSystem/v3-ActReason\",\n     \"code\": \"TREAT\"\n    }\n   ]\n  }\n ],\n \"agent\": [\n  {\n   \"who\": {\n    \"reference\": \"Practitioner/QA-{{run}}-DOC\"\n   },\n   \"requestor\": true\n  }\n ],\n \"source\": {\n  \"site\": \"Facility test\",\n  \"observer\": {\n   \"reference\": \"Organization/FAC-0001\"\n  }\n },\n \"entity\": [\n  {\n   \"what\": {\n    \"reference\": \"Patient/QA-{{run}}-FACPAT\"\n   }\n  }\n ],\n \"subtype\": [\n  {\n   \"system\": \"http://hl7.org/fhir/restful-interaction\",\n   \"code\": \"operation\"\n  }\n ]\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "prerequest",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.collectionVariables.set('u36', pm.variables.replaceIn('{{$guid}}'));"
+        ]
+       }
+      },
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('201 Created', function () { pm.response.to.have.status(201); });",
+         "pm.collectionVariables.set('u36_id', pm.response.json().id);"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC13 step 1 - facility auditor of FAC-0001 sees it",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{facility_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent?entity-ref=Patient/QA-{{run}}-FACPAT",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ],
+       "query": [
+        {
+         "key": "entity-ref",
+         "value": "Patient/QA-{{run}}-FACPAT"
+        }
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+         "pm.test('Search total is 1', function () { pm.expect(pm.response.json().total).to.eql(1); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC13 step 1 - and can open it by id",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{facility_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent/{{u36_id}}",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent",
+        "{{u36_id}}"
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC13 step 2 - facility auditor of FAC-0002 finds nothing",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{other_facility_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent?entity-ref=Patient/QA-{{run}}-FACPAT",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ],
+       "query": [
+        {
+         "key": "entity-ref",
+         "value": "Patient/QA-{{run}}-FACPAT"
+        }
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+         "pm.test('Search total is 0', function () { pm.expect(pm.response.json().total).to.eql(0); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC13 step 2 - and cannot open it by id (404, no hint that it exists)",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{other_facility_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent/{{u36_id}}",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent",
+        "{{u36_id}}"
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 404', function () { pm.response.to.have.status(404); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC13 step 3 - facility auditor token with no facility is refused",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{facility_no_claim_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent?entity-ref=Patient/QA-{{run}}-FACPAT",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ],
+       "query": [
+        {
+         "key": "entity-ref",
+         "value": "Patient/QA-{{run}}-FACPAT"
+        }
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 403', function () { pm.response.to.have.status(403); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC13 step 3 - token naming two facilities is refused",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{facility_multi_claim_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent?entity-ref=Patient/QA-{{run}}-FACPAT",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ],
+       "query": [
+        {
+         "key": "entity-ref",
+         "value": "Patient/QA-{{run}}-FACPAT"
+        }
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 403', function () { pm.response.to.have.status(403); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC13 step 3 - token that is both facility and patient scoped is refused",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{two_scoped_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent?entity-ref=Patient/QA-{{run}}-FACPAT",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ],
+       "query": [
+        {
+         "key": "entity-ref",
+         "value": "Patient/QA-{{run}}-FACPAT"
+        }
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 403', function () { pm.response.to.have.status(403); });"
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "TC14 - A patient sees only their own records",
+   "item": [
+    {
+     "name": "TC14 setup - an event about patient PAT-0001",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{token_cr}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n \"resourceType\": \"AuditEvent\",\n \"extension\": [\n  {\n   \"url\": \"http://dhp.health.gov.lk/fhir/StructureDefinition/audit-event-uid\",\n   \"valueString\": \"{{u37a}}\"\n  }\n ],\n \"type\": {\n  \"system\": \"http://terminology.hl7.org/CodeSystem/audit-event-type\",\n  \"code\": \"rest\",\n  \"display\": \"RESTful Operation\"\n },\n \"action\": \"E\",\n \"recorded\": \"{{recorded}}\",\n \"outcome\": \"0\",\n \"purposeOfEvent\": [\n  {\n   \"coding\": [\n    {\n     \"system\": \"http://terminology.hl7.org/CodeSystem/v3-ActReason\",\n     \"code\": \"TREAT\"\n    }\n   ]\n  }\n ],\n \"agent\": [\n  {\n   \"who\": {\n    \"reference\": \"Practitioner/QA-{{run}}-DOC\"\n   },\n   \"requestor\": true\n  }\n ],\n \"source\": {\n  \"site\": \"Portal test\",\n  \"observer\": {\n   \"reference\": \"Device/qa-{{run}}-neg\"\n  }\n },\n \"entity\": [\n  {\n   \"what\": {\n    \"reference\": \"Patient/PAT-0001\"\n   }\n  }\n ],\n \"subtype\": [\n  {\n   \"system\": \"http://hl7.org/fhir/restful-interaction\",\n   \"code\": \"operation\"\n  }\n ]\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "prerequest",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.collectionVariables.set('u37a', pm.variables.replaceIn('{{$guid}}'));"
+        ]
+       }
+      },
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('201 Created', function () { pm.response.to.have.status(201); });",
+         "pm.collectionVariables.set('u37a_id', pm.response.json().id);"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC14 setup - an event about another patient",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{token_cr}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n \"resourceType\": \"AuditEvent\",\n \"extension\": [\n  {\n   \"url\": \"http://dhp.health.gov.lk/fhir/StructureDefinition/audit-event-uid\",\n   \"valueString\": \"{{u37b}}\"\n  }\n ],\n \"type\": {\n  \"system\": \"http://terminology.hl7.org/CodeSystem/audit-event-type\",\n  \"code\": \"rest\",\n  \"display\": \"RESTful Operation\"\n },\n \"action\": \"E\",\n \"recorded\": \"{{recorded}}\",\n \"outcome\": \"0\",\n \"purposeOfEvent\": [\n  {\n   \"coding\": [\n    {\n     \"system\": \"http://terminology.hl7.org/CodeSystem/v3-ActReason\",\n     \"code\": \"TREAT\"\n    }\n   ]\n  }\n ],\n \"agent\": [\n  {\n   \"who\": {\n    \"reference\": \"Practitioner/QA-{{run}}-DOC\"\n   },\n   \"requestor\": true\n  }\n ],\n \"source\": {\n  \"site\": \"Portal test\",\n  \"observer\": {\n   \"reference\": \"Device/qa-{{run}}-neg\"\n  }\n },\n \"entity\": [\n  {\n   \"what\": {\n    \"reference\": \"Patient/QA-{{run}}-OTHER\"\n   }\n  }\n ],\n \"subtype\": [\n  {\n   \"system\": \"http://hl7.org/fhir/restful-interaction\",\n   \"code\": \"operation\"\n  }\n ]\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "prerequest",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.collectionVariables.set('u37b', pm.variables.replaceIn('{{$guid}}'));"
+        ]
+       }
+      },
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('201 Created', function () { pm.response.to.have.status(201); });",
+         "pm.collectionVariables.set('u37b_id', pm.response.json().id);"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC14 step 1 - the patient opens their own record",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{patient_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent/{{u37a_id}}",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent",
+        "{{u37a_id}}"
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC14 step 2 - the patient tries another patient's record (404)",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{patient_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent/{{u37b_id}}",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent",
+        "{{u37b_id}}"
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 404', function () { pm.response.to.have.status(404); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC14 step 2 - the patient searches for another patient",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{patient_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent?entity-ref=Patient/QA-{{run}}-OTHER",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ],
+       "query": [
+        {
+         "key": "entity-ref",
+         "value": "Patient/QA-{{run}}-OTHER"
+        }
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+         "pm.test('Search total is 0', function () { pm.expect(pm.response.json().total).to.eql(0); });"
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "TC15 - Only an administrator can verify the chain",
+   "item": [
+    {
+     "name": "TC15 step 1 - sending system tries to verify the chain",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{token_cr}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/$verify-chain",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "$verify-chain"
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 403', function () { pm.response.to.have.status(403); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC15 step 1 - facility auditor tries to verify the chain",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{facility_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/$verify-chain",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "$verify-chain"
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 403', function () { pm.response.to.have.status(403); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC15 step 1 - no token",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{chester_base}}/$verify-chain",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "$verify-chain"
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 401', function () { pm.response.to.have.status(401); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC15 step 2 - administrator can, and the chain is valid",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{admin_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/$verify-chain",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "$verify-chain"
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+         "pm.test('Chain valid', function () { var v = pm.response.json().parameter.find(function (x) { return x.name === 'valid'; }); pm.expect(v.valueBoolean).to.eql(true); });"
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "TC16 - A repeated event is not stored twice, a clashing one is refused",
+   "item": [
+    {
+     "name": "TC16 step 1 - send an event",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{token_cr}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n \"resourceType\": \"AuditEvent\",\n \"extension\": [\n  {\n   \"url\": \"http://dhp.health.gov.lk/fhir/StructureDefinition/audit-event-uid\",\n   \"valueString\": \"{{u39}}\"\n  }\n ],\n \"type\": {\n  \"system\": \"http://terminology.hl7.org/CodeSystem/audit-event-type\",\n  \"code\": \"rest\",\n  \"display\": \"RESTful Operation\"\n },\n \"action\": \"E\",\n \"recorded\": \"{{recorded}}\",\n \"outcome\": \"0\",\n \"purposeOfEvent\": [\n  {\n   \"coding\": [\n    {\n     \"system\": \"http://terminology.hl7.org/CodeSystem/v3-ActReason\",\n     \"code\": \"TREAT\"\n    }\n   ]\n  }\n ],\n \"agent\": [\n  {\n   \"who\": {\n    \"reference\": \"Practitioner/QA-{{run}}-DOC\"\n   },\n   \"requestor\": true\n  }\n ],\n \"source\": {\n  \"site\": \"Negative test\",\n  \"observer\": {\n   \"reference\": \"Device/qa-{{run}}-neg\"\n  }\n },\n \"entity\": [\n  {\n   \"what\": {\n    \"reference\": \"Patient/QA-{{run}}-NEG\"\n   }\n  }\n ],\n \"subtype\": [\n  {\n   \"system\": \"http://hl7.org/fhir/restful-interaction\",\n   \"code\": \"operation\"\n  }\n ]\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "prerequest",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.collectionVariables.set('u39', pm.variables.replaceIn('{{$guid}}'));"
+        ]
+       }
+      },
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('201 Created', function () { pm.response.to.have.status(201); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC16 step 2 - send exactly the same event again: answered with the original, nothing new stored",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{token_cr}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n \"resourceType\": \"AuditEvent\",\n \"extension\": [\n  {\n   \"url\": \"http://dhp.health.gov.lk/fhir/StructureDefinition/audit-event-uid\",\n   \"valueString\": \"{{u39}}\"\n  }\n ],\n \"type\": {\n  \"system\": \"http://terminology.hl7.org/CodeSystem/audit-event-type\",\n  \"code\": \"rest\",\n  \"display\": \"RESTful Operation\"\n },\n \"action\": \"E\",\n \"recorded\": \"{{recorded}}\",\n \"outcome\": \"0\",\n \"purposeOfEvent\": [\n  {\n   \"coding\": [\n    {\n     \"system\": \"http://terminology.hl7.org/CodeSystem/v3-ActReason\",\n     \"code\": \"TREAT\"\n    }\n   ]\n  }\n ],\n \"agent\": [\n  {\n   \"who\": {\n    \"reference\": \"Practitioner/QA-{{run}}-DOC\"\n   },\n   \"requestor\": true\n  }\n ],\n \"source\": {\n  \"site\": \"Negative test\",\n  \"observer\": {\n   \"reference\": \"Device/qa-{{run}}-neg\"\n  }\n },\n \"entity\": [\n  {\n   \"what\": {\n    \"reference\": \"Patient/QA-{{run}}-NEG\"\n   }\n  }\n ],\n \"subtype\": [\n  {\n   \"system\": \"http://hl7.org/fhir/restful-interaction\",\n   \"code\": \"operation\"\n  }\n ]\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+         "pm.test('Marked as a duplicate', function () { pm.expect(pm.response.headers.get('X-Chester-Duplicate')).to.be.ok; });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC16 step 3 - same event id but different content: refused",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{token_cr}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n \"resourceType\": \"AuditEvent\",\n \"extension\": [\n  {\n   \"url\": \"http://dhp.health.gov.lk/fhir/StructureDefinition/audit-event-uid\",\n   \"valueString\": \"{{u39}}\"\n  }\n ],\n \"type\": {\n  \"system\": \"http://terminology.hl7.org/CodeSystem/audit-event-type\",\n  \"code\": \"rest\",\n  \"display\": \"RESTful Operation\"\n },\n \"action\": \"E\",\n \"recorded\": \"{{recorded}}\",\n \"outcome\": \"4\",\n \"purposeOfEvent\": [\n  {\n   \"coding\": [\n    {\n     \"system\": \"http://terminology.hl7.org/CodeSystem/v3-ActReason\",\n     \"code\": \"TREAT\"\n    }\n   ]\n  }\n ],\n \"agent\": [\n  {\n   \"who\": {\n    \"reference\": \"Practitioner/QA-{{run}}-DOC\"\n   },\n   \"requestor\": true\n  }\n ],\n \"source\": {\n  \"site\": \"Negative test\",\n  \"observer\": {\n   \"reference\": \"Device/qa-{{run}}-neg\"\n  }\n },\n \"entity\": [\n  {\n   \"what\": {\n    \"reference\": \"Patient/QA-{{run}}-NEG\"\n   }\n  }\n ],\n \"subtype\": [\n  {\n   \"system\": \"http://hl7.org/fhir/restful-interaction\",\n   \"code\": \"operation\"\n  }\n ]\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 409', function () { pm.response.to.have.status(409); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC16 step 4 - still one record, content unchanged",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent?event-uid={{u39}}",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ],
+       "query": [
+        {
+         "key": "event-uid",
+         "value": "{{u39}}"
+        }
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+         "pm.test('Search total is 1', function () { pm.expect(pm.response.json().total).to.eql(1); });",
+         "pm.test('Outcome is still the original (0)', function () { pm.expect(pm.response.json().entry[0].resource.outcome).to.eql('0'); });"
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "TC17 - An oversized event is refused",
+   "item": [
+    {
+     "name": "TC17 step 1 - event with a 20 KB detail value",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{token_cr}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n \"resourceType\": \"AuditEvent\",\n \"extension\": [\n  {\n   \"url\": \"http://dhp.health.gov.lk/fhir/StructureDefinition/audit-event-uid\",\n   \"valueString\": \"{{u40}}\"\n  }\n ],\n \"type\": {\n  \"system\": \"http://terminology.hl7.org/CodeSystem/audit-event-type\",\n  \"code\": \"rest\",\n  \"display\": \"RESTful Operation\"\n },\n \"action\": \"E\",\n \"recorded\": \"{{recorded}}\",\n \"outcome\": \"0\",\n \"purposeOfEvent\": [\n  {\n   \"coding\": [\n    {\n     \"system\": \"http://terminology.hl7.org/CodeSystem/v3-ActReason\",\n     \"code\": \"TREAT\"\n    }\n   ]\n  }\n ],\n \"agent\": [\n  {\n   \"who\": {\n    \"reference\": \"Practitioner/QA-{{run}}-DOC\"\n   },\n   \"requestor\": true\n  }\n ],\n \"source\": {\n  \"site\": \"Negative test\",\n  \"observer\": {\n   \"reference\": \"Device/qa-{{run}}-neg\"\n  }\n },\n \"entity\": [\n  {\n   \"what\": {\n    \"reference\": \"Patient/QA-{{run}}-NEG\"\n   },\n   \"detail\": [\n    {\n     \"type\": \"note\",\n     \"valueString\": \"{{big40}}\"\n    }\n   ]\n  }\n ],\n \"subtype\": [\n  {\n   \"system\": \"http://hl7.org/fhir/restful-interaction\",\n   \"code\": \"operation\"\n  }\n ]\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "prerequest",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.collectionVariables.set('u40', pm.variables.replaceIn('{{$guid}}'));",
+         "pm.collectionVariables.set('big40', 'x'.repeat(20000));"
+        ]
+       }
+      },
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 422', function () { pm.response.to.have.status(422); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC17 step 2 - nothing was stored",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent?event-uid={{u40}}",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ],
+       "query": [
+        {
+         "key": "event-uid",
+         "value": "{{u40}}"
+        }
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+         "pm.test('Search total is 0', function () { pm.expect(pm.response.json().total).to.eql(0); });"
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "TC18 - Personal or clinical data in an event is refused",
+   "item": [
+    {
+     "name": "TC18 step 1 - patient name in entity.name",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{token_cr}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n \"resourceType\": \"AuditEvent\",\n \"extension\": [\n  {\n   \"url\": \"http://dhp.health.gov.lk/fhir/StructureDefinition/audit-event-uid\",\n   \"valueString\": \"{{u41}}\"\n  }\n ],\n \"type\": {\n  \"system\": \"http://terminology.hl7.org/CodeSystem/audit-event-type\",\n  \"code\": \"rest\",\n  \"display\": \"RESTful Operation\"\n },\n \"action\": \"E\",\n \"recorded\": \"{{recorded}}\",\n \"outcome\": \"0\",\n \"purposeOfEvent\": [\n  {\n   \"coding\": [\n    {\n     \"system\": \"http://terminology.hl7.org/CodeSystem/v3-ActReason\",\n     \"code\": \"TREAT\"\n    }\n   ]\n  }\n ],\n \"agent\": [\n  {\n   \"who\": {\n    \"reference\": \"Practitioner/QA-{{run}}-DOC\"\n   },\n   \"requestor\": true\n  }\n ],\n \"source\": {\n  \"site\": \"Negative test\",\n  \"observer\": {\n   \"reference\": \"Device/qa-{{run}}-neg\"\n  }\n },\n \"entity\": [\n  {\n   \"what\": {\n    \"reference\": \"Patient/QA-{{run}}-NEG\"\n   },\n   \"name\": \"Kamal Perera\"\n  }\n ],\n \"subtype\": [\n  {\n   \"system\": \"http://hl7.org/fhir/restful-interaction\",\n   \"code\": \"operation\"\n  }\n ]\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "prerequest",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.collectionVariables.set('u41', pm.variables.replaceIn('{{$guid}}'));"
+        ]
+       }
+      },
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 422', function () { pm.response.to.have.status(422); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC18 step 1 - national ID number in the outcome text",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{token_cr}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n \"resourceType\": \"AuditEvent\",\n \"extension\": [\n  {\n   \"url\": \"http://dhp.health.gov.lk/fhir/StructureDefinition/audit-event-uid\",\n   \"valueString\": \"{{u41}}\"\n  }\n ],\n \"type\": {\n  \"system\": \"http://terminology.hl7.org/CodeSystem/audit-event-type\",\n  \"code\": \"rest\",\n  \"display\": \"RESTful Operation\"\n },\n \"action\": \"E\",\n \"recorded\": \"{{recorded}}\",\n \"outcome\": \"0\",\n \"purposeOfEvent\": [\n  {\n   \"coding\": [\n    {\n     \"system\": \"http://terminology.hl7.org/CodeSystem/v3-ActReason\",\n     \"code\": \"TREAT\"\n    }\n   ]\n  }\n ],\n \"agent\": [\n  {\n   \"who\": {\n    \"reference\": \"Practitioner/QA-{{run}}-DOC\"\n   },\n   \"requestor\": true\n  }\n ],\n \"source\": {\n  \"site\": \"Negative test\",\n  \"observer\": {\n   \"reference\": \"Device/qa-{{run}}-neg\"\n  }\n },\n \"entity\": [\n  {\n   \"what\": {\n    \"reference\": \"Patient/QA-{{run}}-NEG\"\n   }\n  }\n ],\n \"subtype\": [\n  {\n   \"system\": \"http://hl7.org/fhir/restful-interaction\",\n   \"code\": \"operation\"\n  }\n ],\n \"outcomeDesc\": \"Login failed for NIC 199012345678\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 422', function () { pm.response.to.have.status(422); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC18 step 1 - search values in entity.query",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{token_cr}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n \"resourceType\": \"AuditEvent\",\n \"extension\": [\n  {\n   \"url\": \"http://dhp.health.gov.lk/fhir/StructureDefinition/audit-event-uid\",\n   \"valueString\": \"{{u41}}\"\n  }\n ],\n \"type\": {\n  \"system\": \"http://terminology.hl7.org/CodeSystem/audit-event-type\",\n  \"code\": \"rest\",\n  \"display\": \"RESTful Operation\"\n },\n \"action\": \"E\",\n \"recorded\": \"{{recorded}}\",\n \"outcome\": \"0\",\n \"purposeOfEvent\": [\n  {\n   \"coding\": [\n    {\n     \"system\": \"http://terminology.hl7.org/CodeSystem/v3-ActReason\",\n     \"code\": \"TREAT\"\n    }\n   ]\n  }\n ],\n \"agent\": [\n  {\n   \"who\": {\n    \"reference\": \"Practitioner/QA-{{run}}-DOC\"\n   },\n   \"requestor\": true\n  }\n ],\n \"source\": {\n  \"site\": \"Negative test\",\n  \"observer\": {\n   \"reference\": \"Device/qa-{{run}}-neg\"\n  }\n },\n \"entity\": [\n  {\n   \"what\": {\n    \"reference\": \"Patient/QA-{{run}}-NEG\"\n   },\n   \"query\": \"cGF0aWVudD0xMjM0NTY=\"\n  }\n ],\n \"subtype\": [\n  {\n   \"system\": \"http://hl7.org/fhir/restful-interaction\",\n   \"code\": \"operation\"\n  }\n ]\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 422', function () { pm.response.to.have.status(422); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC18 step 2 - nothing was stored",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent?event-uid={{u41}}",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ],
+       "query": [
+        {
+         "key": "event-uid",
+         "value": "{{u41}}"
+        }
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+         "pm.test('Search total is 0', function () { pm.expect(pm.response.json().total).to.eql(0); });"
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "TC19 - A sender cannot use bundles to change or read records",
+   "item": [
+    {
+     "name": "TC19 setup - new event id for the bundle tests",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent?_summary=count",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ],
+       "query": [
+        {
+         "key": "_summary",
+         "value": "count"
+        }
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "prerequest",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.collectionVariables.set('u42', pm.variables.replaceIn('{{$guid}}'));"
+        ]
+       }
+      },
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC19 step 1 - bundle containing an update (PUT)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{token_cr}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": []
+      },
+      "description": "",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n \"resourceType\": \"Bundle\",\n \"type\": \"transaction\",\n \"entry\": [\n  {\n   \"resource\": {\n    \"resourceType\": \"AuditEvent\",\n    \"extension\": [\n     {\n      \"url\": \"http://dhp.health.gov.lk/fhir/StructureDefinition/audit-event-uid\",\n      \"valueString\": \"{{u42}}\"\n     }\n    ],\n    \"type\": {\n     \"system\": \"http://terminology.hl7.org/CodeSystem/audit-event-type\",\n     \"code\": \"rest\",\n     \"display\": \"RESTful Operation\"\n    },\n    \"action\": \"E\",\n    \"recorded\": \"{{recorded}}\",\n    \"outcome\": \"0\",\n    \"purposeOfEvent\": [\n     {\n      \"coding\": [\n       {\n        \"system\": \"http://terminology.hl7.org/CodeSystem/v3-ActReason\",\n        \"code\": \"TREAT\"\n       }\n      ]\n     }\n    ],\n    \"agent\": [\n     {\n      \"who\": {\n       \"reference\": \"Practitioner/QA-{{run}}-DOC\"\n      },\n      \"requestor\": true\n     }\n    ],\n    \"source\": {\n     \"site\": \"Negative test\",\n     \"observer\": {\n      \"reference\": \"Device/qa-{{run}}-neg\"\n     }\n    },\n    \"entity\": [\n     {\n      \"what\": {\n       \"reference\": \"Patient/QA-{{run}}-NEG\"\n      }\n     }\n    ],\n    \"subtype\": [\n     {\n      \"system\": \"http://hl7.org/fhir/restful-interaction\",\n      \"code\": \"operation\"\n     }\n    ],\n    \"id\": \"x\"\n   },\n   \"request\": {\n    \"method\": \"PUT\",\n    \"url\": \"AuditEvent/x\"\n   }\n  }\n ]\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 403', function () { pm.response.to.have.status(403); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC19 step 1 - bundle containing a delete",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{token_cr}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": []
+      },
+      "description": "",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n \"resourceType\": \"Bundle\",\n \"type\": \"transaction\",\n \"entry\": [\n  {\n   \"request\": {\n    \"method\": \"DELETE\",\n    \"url\": \"AuditEvent/x\"\n   }\n  }\n ]\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 403', function () { pm.response.to.have.status(403); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC19 step 1 - bundle containing a read",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{token_cr}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": []
+      },
+      "description": "",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n \"resourceType\": \"Bundle\",\n \"type\": \"transaction\",\n \"entry\": [\n  {\n   \"request\": {\n    \"method\": \"GET\",\n    \"url\": \"AuditEvent\"\n   }\n  }\n ]\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 403', function () { pm.response.to.have.status(403); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC19 step 1 - bundle containing a Patient",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{token_cr}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": []
+      },
+      "description": "",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n \"resourceType\": \"Bundle\",\n \"type\": \"transaction\",\n \"entry\": [\n  {\n   \"resource\": {\n    \"resourceType\": \"Patient\",\n    \"name\": [\n     {\n      \"family\": \"Test\"\n     }\n    ]\n   },\n   \"request\": {\n    \"method\": \"POST\",\n    \"url\": \"Patient\"\n   }\n  }\n ]\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 403', function () { pm.response.to.have.status(403); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC19 step 2 - a Patient sent directly",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{token_cr}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/fhir+json"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/Patient",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "Patient"
+       ]
+      },
+      "description": "",
+      "body": {
+       "mode": "raw",
+       "raw": "{\"resourceType\":\"Patient\",\"name\":[{\"family\":\"Test\"}]}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Refused', function () { pm.expect([403, 404, 405, 422]).to.include(pm.response.code); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "TC19 step 3 - the event in step 1 was not stored",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Authorization",
+        "value": "Bearer {{reader_token}}"
+       }
+      ],
+      "url": {
+       "raw": "{{chester_base}}/AuditEvent?event-uid={{u42}}",
+       "host": [
+        "{{chester_base}}"
+       ],
+       "path": [
+        "AuditEvent"
+       ],
+       "query": [
+        {
+         "key": "event-uid",
+         "value": "{{u42}}"
+        }
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+         "pm.test('Search total is 0', function () { pm.expect(pm.response.json().total).to.eql(0); });"
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}
