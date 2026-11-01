@@ -1,7 +1,7 @@
 {
  "info": {
   "name": "Bundle 3 MVP test cases (US_25) - Chester",
-  "description": "One folder per kept test case of the workbook B3_MVP_Test_Cases_v3.2 (sheet US_25): TC01 to TC19 (TC01 to TC09 are the rewritten cases, TC10 to TC19 the negative cases). Each request is named after the workbook step it follows (TCnn step n - ...); the workbook's column K and its 'Postman map' sheet list the requests for every step.\n\nSet chester_base and the tokens in the environment (see the README). The 'run' variable is created automatically and makes every test patient unique, so the collection can be run again on the same Chester. TC08 (many events at once) runs the batch sequentially; to send from several test sources at once, run the TC08 folder in several newman processes with different tc10_token and tc10_run values (the README shows how).\n\nVerification: run on newman 6.2.3 against the patched Chester on PostgreSQL (tokens from a local key server). Not opened in the Postman app; not run against Keycloak. Do not run TC08 against an in-memory H2 Chester: the chain lock only exists on PostgreSQL.",
+  "description": "One folder per kept test case of the workbook B3_MVP_Test_Cases_v3.2 (sheet US_25): TC10 to TC19 the negative cases. Each request is named after the workbook step it follows (TCnn step n - ...); the workbook's column K and its 'Postman map' sheet list the requests for every step.\n\nSet chester_base and the tokens in the environment. The 'run' variable is created automatically and makes every test patient unique, so the collection can be run again on the same Audit Repository.",
   "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
  },
  "event": [
