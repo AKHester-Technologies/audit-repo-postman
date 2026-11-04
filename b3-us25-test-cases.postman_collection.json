@@ -1,7 +1,7 @@
 {
  "info": {
-  "name": "Bundle 3 MVP test cases (US_25) - Chester",
-  "description": "One folder per kept test case of the workbook B3_MVP_Test_Cases_v3.2 (sheet US_25): TC10 to TC19 the negative cases. Each request is named after the workbook step it follows (TCnn step n - ...); the workbook's column K and its 'Postman map' sheet list the requests for every step.\n\nSet chester_base and the tokens in the environment. The 'run' variable is created automatically and makes every test patient unique, so the collection can be run again on the same Audit Repository.",
+  "name": "Bundle 3 MVP test cases (US_25) - Chester (QA / Keycloak tokens)",
+  "description": "One folder per kept test case of the workbook B3_MVP_Test_Cases_v3.2 (sheet US_25): TC10 to TC19 the negative cases. Each request is named after the workbook step it follows (TCnn step n - ...); the workbook's column K and its 'Postman map' sheet list the requests for every step.\n\nSet chester_base and the tokens in the environment. The 'run' variable is created automatically and makes every test patient unique, so the collection can be run again on the same Audit Repository.\n\n---\n**Running this collection against QA**\n1. In Keycloak (realm bundle-3), import `chester-test-clients-qa-import.json` (Clients and Users, policy Skip). It creates 19 test clients named `chester-test-<name>-qa`, each with one role and, where needed, a facility or patient claim.\n2. Import the environment `B3 US_25 QA (Keycloak)`. `chester_base` is the QA FHIR address, `kc_token_url` is the realm's token endpoint and `client_secret` is the shared secret of the test clients.\n3. Run the whole collection (Run collection, one iteration). The first request's script fetches every token from Keycloak and refreshes them every 200 seconds. It also clears old run ids and counters, so every run uses fresh test data.\n4. About 150 requests run in roughly 45 to 70 seconds. The wait before the expired-token request is deliberate.\n\n**What it leaves behind:** each run stores test events (patients and practitioners named `QA-...`). Audit records cannot be deleted, so they stay in the QA store.\n\n**Delete the 19 test clients when testing is over.** They share one secret and are for testing only.\n\n---\n**Running this collection against QA**\n1. In Keycloak (realm bundle-3), import `chester-test-clients-qa-import.json` (Clients and Users, policy Skip). It creates 19 test clients named `chester-test-<name>-qa`, each with one role and, where needed, a facility or patient claim.\n2. Import the environment `B3 US_25 QA (Keycloak)`. `chester_base` is the QA FHIR address, `kc_token_url` is the realm's token endpoint and `client_secret` is the shared secret of the test clients.\n3. Run the whole collection (Run collection, one iteration). The first request's script fetches every token from Keycloak and refreshes them every 200 seconds. It also clears old run ids and counters, so every run uses fresh test data.\n4. About 150 requests run in roughly 45 to 70 seconds. The wait before the expired-token request is deliberate.\n\n**What it leaves behind:** each run stores test events (patients and practitioners named `QA-...`). Audit records cannot be deleted, so they stay in the QA store.\n\n**Delete the 19 test clients when testing is over.** They share one secret and are for testing only.",
   "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
  },
  "event": [
@@ -10,9 +10,41 @@
    "script": {
     "type": "text/javascript",
     "exec": [
+     "if (pm.info.requestName === \"TC01 step 1 - registry test client sends a merge event\") { ['run','run_started','tc10_i','tc10_uids','tc10_retry','tc10_503','u10'].forEach(function (k) { pm.collectionVariables.unset(k); }); }   // fresh test data and counters at the start of every run",
+     "pm.environment.set('garbage_token', ['not','a','real','token'].join('-'));   // deliberately invalid token for TC10",
      "if (!pm.collectionVariables.get('run')) { pm.collectionVariables.set('run', pm.variables.replaceIn('{{$guid}}').slice(0, 8)); }",
      "var t = parseInt(pm.collectionVariables.get('run_started') || '0');",
-     "if (!t || Date.now() - t > 1800000) { pm.collectionVariables.set('run_started', String(Date.now())); pm.collectionVariables.set('recorded', new Date().toISOString().replace(/\\.\\d+Z$/, 'Z')); }"
+     "if (!t || Date.now() - t > 1800000) { pm.collectionVariables.set('run_started', String(Date.now())); pm.collectionVariables.set('recorded', new Date().toISOString().replace(/\\.\\d+Z$/, 'Z')); }",
+     "",
+     "// ---- QA: fetch tokens from Keycloak (only when kc_token_url is set in the environment) ----",
+     "if (pm.environment.get('kc_token_url')) {",
+     "  var MAP = {\"tc10_token\": \"chester-test-tc10-qa\", \"token_cr\": \"chester-test-cr-qa\", \"token_pr\": \"chester-test-pr-qa\", \"token_fr\": \"chester-test-fr-qa\", \"token_nehr\": \"chester-test-nehr-qa\", \"token_cm\": \"chester-test-cm-qa\", \"token_ereferral\": \"chester-test-ereferral-qa\", \"reader_token\": \"chester-test-auditor-qa\", \"admin_token\": \"chester-test-admin-qa\", \"btg_token\": \"chester-test-btg-qa\", \"facility_token\": \"chester-test-facility1-qa\", \"other_facility_token\": \"chester-test-facility2-qa\", \"facility_no_claim_token\": \"chester-test-facility-noclaim-qa\", \"facility_multi_claim_token\": \"chester-test-facility-multi-qa\", \"patient_token\": \"chester-test-portal-qa\", \"two_scoped_token\": \"chester-test-twoscoped-qa\", \"writer_reader_token\": \"chester-test-writer-reader-qa\", \"wrong_audience_token\": \"chester-test-wrongaud-qa\", \"expired_token\": \"chester-test-expired-qa\"};",
+     "  var secret = pm.environment.get('client_secret');",
+     "  var age = Date.now() - parseInt(pm.environment.get('tok_at') || '0');",
+     "  if (age > 200000) {                       // tokens last 300 s: refresh after 200 s",
+     "    pm.environment.set('tok_at', String(Date.now()));",
+     "    Object.keys(MAP).forEach(function (v) {",
+     "      pm.sendRequest({ url: pm.environment.get('kc_token_url'), method: 'POST',",
+     "        header: { 'Content-Type': 'application/x-www-form-urlencoded' },",
+     "        body: { mode: 'urlencoded', urlencoded: [",
+     "          { key: 'grant_type', value: 'client_credentials' }, { key: 'client_id', value: MAP[v] }, { key: 'client_secret', value: secret } ] } },",
+     "        function (err, res) {",
+     "          if (err || res.code !== 200) { console.log('token failed for ' + v + ': ' + (err || res.code + ' ' + res.text())); return; }",
+     "          pm.environment.set(v, res.json().access_token);",
+     "          if (v === 'expired_token') pm.environment.set('expired_at', String(Date.now()));",
+     "          if (v === 'token_cr') {            // derive the two tokens Keycloak cannot issue",
+     "            var t = res.json().access_token.split('.');",
+     "            var sig = t[2]; pm.environment.set('tampered_token', t[0] + '.' + t[1] + '.' + sig.slice(0, -6) + (sig.slice(-6) === 'AAAAAA' ? 'BBBBBB' : 'AAAAAA'));",
+     "            var pad = t[1].replace(/-/g, '+').replace(/_/g, '/'); while (pad.length % 4) pad += '=';",
+     "            var p = JSON.parse(atob(pad)); p.iss = 'https://evil.example/realms/other';",
+     "            var b = btoa(JSON.stringify(p)).replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');",
+     "            pm.environment.set('wrong_issuer_token', t[0] + '.' + b + '.' + sig);",
+     "          }",
+     "        });",
+     "    });",
+     "  }",
+     "}",
+     ""
     ]
    }
   }
@@ -83,7 +115,7 @@
         }
        }
       },
-      "description": ""
+      "description": "**What it does:** Registry test client sends a merge event.\n\n**Request:** `POST /AuditEvent`\n\n**Sent as:** Client Registry (sending system), using Keycloak client `chester-test-cr-qa`. Role: AUDIT_WRITER: may only send events, cannot read.\n\n**Expected result:** HTTP 201."
      },
      "event": [
       {
@@ -131,7 +163,7 @@
         }
        ]
       },
-      "description": ""
+      "description": "**What it does:** Auditor finds it by the surviving patient.\n\n**Request:** `GET /AuditEvent?entity-ref=Patient/QA-{{run}}-KEEP`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Expected result:** HTTP 200.\n\n**Checks:**\n- Search total is 1"
      },
      "event": [
       {
@@ -167,7 +199,7 @@
         "{{id01}}"
        ]
       },
-      "description": ""
+      "description": "**What it does:** Record shows action, who, when, which system, which patients.\n\n**Request:** `GET /AuditEvent/{{id01}}`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Checks:**\n- Action is an update (U)\n- Who performed it\n- When: recorded time and time Chester received it\n- Which system sent it: source and Submitted-by client\n- Both patient records are named\n\n**Needs an earlier request:** uses `{{id01}}`, saved by \"TC01 step 1 - auditor finds it by the surviving patient\". Run the whole collection (or the whole folder from the top), not this request alone."
      },
      "event": [
       {
@@ -179,14 +211,15 @@
          "pm.test('Action is an update (U)', function () { pm.expect(e.action).to.eql('U'); });",
          "pm.test('Who performed it', function () { pm.expect(e.agent[0].who.reference).to.include('OFFICER'); });",
          "pm.test('When: recorded time and time Chester received it', function () { pm.expect(e.recorded).to.be.a('string'); pm.expect(e.meta.lastUpdated).to.be.a('string'); });",
-         "pm.test('Which system sent it: source and Submitted-by client', function () { pm.expect(e.source.site).to.eql('Client Registry (test)'); var t = (e.meta.tag||[]).filter(function (x) { return x.system === 'https://akhester.com/chester/submitting-client'; }); pm.expect(t.length).to.eql(1); pm.expect(t[0].code).to.eql('cr'); });",
+         "pm.test('Which system sent it: source and Submitted-by client', function () { pm.expect(e.source.site).to.eql('Client Registry (test)'); var t = (e.meta.tag||[]).filter(function (x) { return x.system === 'https://akhester.com/chester/submitting-client'; }); pm.expect(t.length).to.eql(1); pm.expect(t[0].code).to.eql(pm.environment.get('client_cr') || 'cr'); });",
          "pm.test('Both patient records are named', function () { var r = e.entity.map(function (x) { return x.what.reference; }); pm.expect(r).to.include.members(['Patient/QA-' + pm.collectionVariables.get('run') + '-KEEP', 'Patient/QA-' + pm.collectionVariables.get('run') + '-MERGED']); });"
         ]
        }
       }
      ]
     }
-   ]
+   ],
+   "description": "**Purpose:** A patient merge (two records for one person are joined) must leave an audit record.\n\n**Why it matters:** Merging patients changes what is on record for a person, so the Ministry must be able to see that it happened, who did it and which two patients were involved.\n\n**How it is tested:** The Client Registry test client sends a merge event. The Ministry auditor then finds it by the surviving patient and checks the stored record: action Update, who, when it was recorded and received, which system sent it, and both patients named.\n\nRun the whole collection from the top. Requests in a folder depend on earlier ones."
   },
   {
    "name": "TC02 - Break-glass override is recorded and flagged",
@@ -223,7 +256,7 @@
         }
        }
       },
-      "description": ""
+      "description": "**What it does:** Consent Manager test client sends a break-glass event.\n\n**Request:** `POST /AuditEvent`\n\n**Sent as:** Consent Manager (sending system), using Keycloak client `chester-test-cm-qa`. Role: AUDIT_WRITER: may only send events.\n\n**Expected result:** HTTP 201."
      },
      "event": [
       {
@@ -271,7 +304,7 @@
         }
        ]
       },
-      "description": ""
+      "description": "**What it does:** Found by the test patient.\n\n**Request:** `GET /AuditEvent?entity-ref=Patient/QA-{{run}}-BTG`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Expected result:** HTTP 200.\n\n**Checks:**\n- Search total is 1"
      },
      "event": [
       {
@@ -307,7 +340,7 @@
         "{{id02}}"
        ]
       },
-      "description": ""
+      "description": "**What it does:** Entry shows who, which patient, when, which system.\n\n**Request:** `GET /AuditEvent/{{id02}}`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Checks:**\n- Who\n- Which patient\n- When and which system\n\n**Needs an earlier request:** uses `{{id02}}`, saved by \"TC02 step 1 - found by the test patient\". Run the whole collection (or the whole folder from the top), not this request alone."
      },
      "event": [
       {
@@ -344,7 +377,7 @@
         "{{id02}}"
        ]
       },
-      "description": ""
+      "description": "**What it does:** Carries the BTG security label.\n\n**Request:** `GET /AuditEvent/{{id02}}`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Checks:**\n- Security label BTG\n\n**Needs an earlier request:** uses `{{id02}}`, saved by \"TC02 step 1 - found by the test patient\". Run the whole collection (or the whole folder from the top), not this request alone."
      },
      "event": [
       {
@@ -388,7 +421,7 @@
         }
        ]
       },
-      "description": ""
+      "description": "**What it does:** Break-glass=BTG search returns it (Break-glass page query).\n\n**Request:** `GET /AuditEvent?break-glass=BTG&entity-ref=Patient/QA-{{run}}-BTG`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Expected result:** HTTP 200.\n\n**Checks:**\n- Our entry is in the result"
      },
      "event": [
       {
@@ -432,7 +465,7 @@
         }
        ]
       },
-      "description": ""
+      "description": "**What it does:** A normal event is not in the break-glass list.\n\n**Request:** `GET /AuditEvent?break-glass=BTG&entity-ref=Patient/QA-{{run}}-KEEP`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Expected result:** HTTP 200.\n\n**Checks:**\n- Search total is 0"
      },
      "event": [
       {
@@ -447,7 +480,8 @@
       }
      ]
     }
-   ]
+   ],
+   "description": "**Purpose:** A break-glass override (a clinician opens a record in an emergency without normal permission) must be recorded and flagged.\n\n**Why it matters:** Break-glass access is the most sensitive kind of access. It has to be findable on its own, and an ordinary event must never appear in the break-glass list.\n\n**How it is tested:** The Consent Manager test client sends a break-glass event. The auditor finds it by patient, checks who, which patient, when and which system, checks that it carries the BTG security label, that the break-glass=BTG search returns it, and that a normal event does not.\n\nRun the whole collection from the top. Requests in a folder depend on earlier ones."
   },
   {
    "name": "TC03 - New provider and facility are recorded",
@@ -484,7 +518,7 @@
         }
        }
       },
-      "description": ""
+      "description": "**What it does:** Provider Registry sends a new-provider event.\n\n**Request:** `POST /AuditEvent`\n\n**Sent as:** Provider Registry (sending system), using Keycloak client `chester-test-pr-qa`. Role: AUDIT_WRITER: may only send events.\n\n**Expected result:** HTTP 201."
      },
      "event": [
       {
@@ -539,7 +573,7 @@
         }
        }
       },
-      "description": ""
+      "description": "**What it does:** Facility Registry sends a new-facility event.\n\n**Request:** `POST /AuditEvent`\n\n**Sent as:** Facility Registry (sending system), using Keycloak client `chester-test-fr-qa`. Role: AUDIT_WRITER: may only send events.\n\n**Expected result:** HTTP 201."
      },
      "event": [
       {
@@ -587,7 +621,7 @@
         }
        ]
       },
-      "description": ""
+      "description": "**What it does:** Found by the provider reference.\n\n**Request:** `GET /AuditEvent?entity-ref=Practitioner/QA-{{run}}-NEWPROV`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Expected result:** HTTP 200.\n\n**Checks:**\n- Search total is 1"
      },
      "event": [
       {
@@ -628,7 +662,7 @@
         }
        ]
       },
-      "description": ""
+      "description": "**What it does:** Found by the facility reference.\n\n**Request:** `GET /AuditEvent?entity-ref=Organization/QA-{{run}}-NEWFAC`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Expected result:** HTTP 200.\n\n**Checks:**\n- Search total is 1"
      },
      "event": [
       {
@@ -664,7 +698,7 @@
         "{{id03a}}"
        ]
       },
-      "description": ""
+      "description": "**What it does:** Provider record: create, who, when, source.\n\n**Request:** `GET /AuditEvent/{{id03a}}`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Checks:**\n- Action is create (C)\n- Who, when, source\n\n**Needs an earlier request:** uses `{{id03a}}`, saved by \"TC03 step 1 - found by the provider reference\". Run the whole collection (or the whole folder from the top), not this request alone."
      },
      "event": [
       {
@@ -700,7 +734,7 @@
         "{{id03b}}"
        ]
       },
-      "description": ""
+      "description": "**What it does:** Facility record: create, who, when, source.\n\n**Request:** `GET /AuditEvent/{{id03b}}`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Checks:**\n- Action is create (C)\n- Who, when, source\n\n**Needs an earlier request:** uses `{{id03b}}`, saved by \"TC03 step 1 - found by the facility reference\". Run the whole collection (or the whole folder from the top), not this request alone."
      },
      "event": [
       {
@@ -716,7 +750,8 @@
       }
      ]
     }
-   ]
+   ],
+   "description": "**Purpose:** Adding a new provider or a new facility to a registry must be recorded.\n\n**Why it matters:** Changes to who may be treated as a provider or a facility affect later access decisions, so they need an audit trail like any other change.\n\n**How it is tested:** The Provider Registry and Facility Registry test clients each send a create event. The auditor finds each one by its provider or facility reference and checks action Create, who, when and the source system.\n\nRun the whole collection from the top. Requests in a folder depend on earlier ones."
   },
   {
    "name": "TC04 - A stored record cannot be changed or deleted",
@@ -753,7 +788,7 @@
         }
        }
       },
-      "description": ""
+      "description": "**What it does:** An audit record exists.\n\n**Request:** `POST /AuditEvent`\n\n**Sent as:** Client Registry (sending system), using Keycloak client `chester-test-cr-qa`. Role: AUDIT_WRITER: may only send events, cannot read.\n\n**Expected result:** HTTP 201."
      },
      "event": [
       {
@@ -797,7 +832,7 @@
         "{{id05}}"
        ]
       },
-      "description": ""
+      "description": "**What it does:** Note its content.\n\n**Request:** `GET /AuditEvent/{{id05}}`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Expected result:** HTTP 200.\n\n**Needs an earlier request:** uses `{{id05}}`, saved by \"TC04 step 1 - an audit record exists\". Run the whole collection (or the whole folder from the top), not this request alone."
      },
      "event": [
       {
@@ -836,7 +871,7 @@
         "{{id05}}"
        ]
       },
-      "description": "",
+      "description": "**What it does:** PUT with the Ministry auditor token.\n\n**Request:** `PUT /AuditEvent/{{id05}}`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Expected result:** HTTP 403.\n\n**Needs an earlier request:** uses `{{id05}}`, saved by \"TC04 step 1 - an audit record exists\". Run the whole collection (or the whole folder from the top), not this request alone.",
       "body": {
        "mode": "raw",
        "raw": "{\"resourceType\":\"AuditEvent\",\"id\":\"{{id05}}\"}",
@@ -883,7 +918,7 @@
         "{{id05}}"
        ]
       },
-      "description": "",
+      "description": "**What it does:** PUT with the admin token.\n\n**Request:** `PUT /AuditEvent/{{id05}}`\n\n**Sent as:** administrator, using Keycloak client `chester-test-admin-qa`. Role: AUDIT_ADMIN: may read every event and verify the hash chain.\n\n**Expected result:** HTTP 403.\n\n**Needs an earlier request:** uses `{{id05}}`, saved by \"TC04 step 1 - an audit record exists\". Run the whole collection (or the whole folder from the top), not this request alone.",
       "body": {
        "mode": "raw",
        "raw": "{\"resourceType\":\"AuditEvent\",\"id\":\"{{id05}}\"}",
@@ -930,7 +965,7 @@
         "{{id05}}"
        ]
       },
-      "description": "",
+      "description": "**What it does:** PUT with the token of the sending system.\n\n**Request:** `PUT /AuditEvent/{{id05}}`\n\n**Sent as:** Client Registry (sending system), using Keycloak client `chester-test-cr-qa`. Role: AUDIT_WRITER: may only send events, cannot read.\n\n**Expected result:** HTTP 403.\n\n**Needs an earlier request:** uses `{{id05}}`, saved by \"TC04 step 1 - an audit record exists\". Run the whole collection (or the whole folder from the top), not this request alone.",
       "body": {
        "mode": "raw",
        "raw": "{\"resourceType\":\"AuditEvent\",\"id\":\"{{id05}}\"}",
@@ -977,7 +1012,7 @@
         "{{id05}}"
        ]
       },
-      "description": "",
+      "description": "**What it does:** PATCH with the admin token.\n\n**Request:** `PATCH /AuditEvent/{{id05}}`\n\n**Sent as:** administrator, using Keycloak client `chester-test-admin-qa`. Role: AUDIT_ADMIN: may read every event and verify the hash chain.\n\n**Expected result:** HTTP 403.\n\n**Checks:**\n- PATCH is refused (403 or 415)\n\n**Needs an earlier request:** uses `{{id05}}`, saved by \"TC04 step 1 - an audit record exists\". Run the whole collection (or the whole folder from the top), not this request alone.",
       "body": {
        "mode": "raw",
        "raw": "[{\"op\":\"replace\",\"path\":\"/outcome\",\"value\":\"8\"}]",
@@ -1024,7 +1059,7 @@
         "{{id05}}"
        ]
       },
-      "description": ""
+      "description": "**What it does:** DELETE with the Ministry auditor token.\n\n**Request:** `DELETE /AuditEvent/{{id05}}`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Expected result:** HTTP 403.\n\n**Needs an earlier request:** uses `{{id05}}`, saved by \"TC04 step 1 - an audit record exists\". Run the whole collection (or the whole folder from the top), not this request alone."
      },
      "event": [
       {
@@ -1062,7 +1097,7 @@
         "{{id05}}"
        ]
       },
-      "description": ""
+      "description": "**What it does:** DELETE with the admin token.\n\n**Request:** `DELETE /AuditEvent/{{id05}}`\n\n**Sent as:** administrator, using Keycloak client `chester-test-admin-qa`. Role: AUDIT_ADMIN: may read every event and verify the hash chain.\n\n**Expected result:** HTTP 403.\n\n**Needs an earlier request:** uses `{{id05}}`, saved by \"TC04 step 1 - an audit record exists\". Run the whole collection (or the whole folder from the top), not this request alone."
      },
      "event": [
       {
@@ -1100,7 +1135,7 @@
         "{{id05}}"
        ]
       },
-      "description": ""
+      "description": "**What it does:** DELETE with the token of the sending system.\n\n**Request:** `DELETE /AuditEvent/{{id05}}`\n\n**Sent as:** Client Registry (sending system), using Keycloak client `chester-test-cr-qa`. Role: AUDIT_WRITER: may only send events, cannot read.\n\n**Expected result:** HTTP 403.\n\n**Needs an earlier request:** uses `{{id05}}`, saved by \"TC04 step 1 - an audit record exists\". Run the whole collection (or the whole folder from the top), not this request alone."
      },
      "event": [
       {
@@ -1134,7 +1169,7 @@
         "{{id05}}"
        ]
       },
-      "description": ""
+      "description": "**What it does:** The record is unchanged.\n\n**Request:** `GET /AuditEvent/{{id05}}`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Expected result:** HTTP 200.\n\n**Checks:**\n- Same content as in step 1\n\n**Needs an earlier request:** uses `{{id05}}`, saved by \"TC04 step 1 - an audit record exists\". Run the whole collection (or the whole folder from the top), not this request alone."
      },
      "event": [
       {
@@ -1168,7 +1203,7 @@
         "$verify-chain"
        ]
       },
-      "description": ""
+      "description": "**What it does:** The hash chain is still valid.\n\n**Request:** `GET /$verify-chain`\n\n**Sent as:** administrator, using Keycloak client `chester-test-admin-qa`. Role: AUDIT_ADMIN: may read every event and verify the hash chain.\n\n**Expected result:** HTTP 200.\n\n**Checks:**\n- Chain valid"
      },
      "event": [
       {
@@ -1183,7 +1218,8 @@
       }
      ]
     }
-   ]
+   ],
+   "description": "**Purpose:** Stored audit records cannot be changed or deleted by anyone.\n\n**Why it matters:** An audit trail is only trustworthy if it cannot be edited. This folder tries to rewrite or remove a record with every role that has any access, and proves it stays exactly as it was.\n\n**How it is tested:** Stores a record, notes its content, then tries PUT, PATCH and DELETE with the auditor, the administrator and a sending system. All must be refused (403, or 415 for PATCH). The record is read back and must be identical, and the hash chain must still verify.\n\nRun the whole collection from the top. Requests in a folder depend on earlier ones."
   },
   {
    "name": "TC05 - Incomplete records: refused, or accepted and flagged",
@@ -1220,7 +1256,7 @@
         }
        }
       },
-      "description": ""
+      "description": "**What it does:** No recorded time.\n\n**Request:** `POST /AuditEvent`\n\n**Sent as:** Client Registry (sending system), using Keycloak client `chester-test-cr-qa`. Role: AUDIT_WRITER: may only send events, cannot read.\n\n**Expected result:** HTTP 422.\n\n**Checks:**\n- The message names the missing element (recorded)\n- Nothing stored for this uid"
      },
      "event": [
       {
@@ -1277,7 +1313,7 @@
         }
        }
       },
-      "description": ""
+      "description": "**What it does:** No agent.\n\n**Request:** `POST /AuditEvent`\n\n**Sent as:** Client Registry (sending system), using Keycloak client `chester-test-cr-qa`. Role: AUDIT_WRITER: may only send events, cannot read.\n\n**Expected result:** HTTP 422.\n\n**Checks:**\n- The message names the missing element (agent)\n- Nothing stored for this uid"
      },
      "event": [
       {
@@ -1334,7 +1370,7 @@
         }
        }
       },
-      "description": ""
+      "description": "**What it does:** No source observer.\n\n**Request:** `POST /AuditEvent`\n\n**Sent as:** Client Registry (sending system), using Keycloak client `chester-test-cr-qa`. Role: AUDIT_WRITER: may only send events, cannot read.\n\n**Expected result:** HTTP 422.\n\n**Checks:**\n- The message names the missing element (observer)\n- Nothing stored for this uid"
      },
      "event": [
       {
@@ -1391,7 +1427,7 @@
         }
        }
       },
-      "description": ""
+      "description": "**What it does:** No event type.\n\n**Request:** `POST /AuditEvent`\n\n**Sent as:** Client Registry (sending system), using Keycloak client `chester-test-cr-qa`. Role: AUDIT_WRITER: may only send events, cannot read.\n\n**Expected result:** HTTP 422.\n\n**Checks:**\n- The message names the missing element (type)\n- Nothing stored for this uid"
      },
      "event": [
       {
@@ -1441,7 +1477,7 @@
         }
        ]
       },
-      "description": ""
+      "description": "**What it does:** No record exists for the rejected one (no recorded time).\n\n**Request:** `GET /AuditEvent?event-uid={{u07a}}`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Expected result:** HTTP 200.\n\n**Checks:**\n- Search total is 0\n\n**Needs an earlier request:** uses `{{u07a}}`, saved by \"TC05 step 1-2 - no recorded time\". Run the whole collection (or the whole folder from the top), not this request alone."
      },
      "event": [
       {
@@ -1481,7 +1517,7 @@
         }
        ]
       },
-      "description": ""
+      "description": "**What it does:** No record exists for the rejected one (no agent).\n\n**Request:** `GET /AuditEvent?event-uid={{u07b}}`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Expected result:** HTTP 200.\n\n**Checks:**\n- Search total is 0\n\n**Needs an earlier request:** uses `{{u07b}}`, saved by \"TC05 step 1-2 - no agent\". Run the whole collection (or the whole folder from the top), not this request alone."
      },
      "event": [
       {
@@ -1521,7 +1557,7 @@
         }
        ]
       },
-      "description": ""
+      "description": "**What it does:** No record exists for the rejected one (no source observer).\n\n**Request:** `GET /AuditEvent?event-uid={{u07c}}`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Expected result:** HTTP 200.\n\n**Checks:**\n- Search total is 0\n\n**Needs an earlier request:** uses `{{u07c}}`, saved by \"TC05 step 1-2 - no source observer\". Run the whole collection (or the whole folder from the top), not this request alone."
      },
      "event": [
       {
@@ -1561,7 +1597,7 @@
         }
        ]
       },
-      "description": ""
+      "description": "**What it does:** No record exists for the rejected one (no event type).\n\n**Request:** `GET /AuditEvent?event-uid={{u07d}}`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Expected result:** HTTP 200.\n\n**Checks:**\n- Search total is 0\n\n**Needs an earlier request:** uses `{{u07d}}`, saved by \"TC05 step 1-2 - no event type\". Run the whole collection (or the whole folder from the top), not this request alone."
      },
      "event": [
       {
@@ -1608,7 +1644,7 @@
         }
        }
       },
-      "description": ""
+      "description": "**What it does:** Everything present but no purposeOfEvent.\n\n**Request:** `POST /AuditEvent`\n\n**Sent as:** Client Registry (sending system), using Keycloak client `chester-test-cr-qa`. Role: AUDIT_WRITER: may only send events, cannot read.\n\n**Expected result:** HTTP 201.\n\n**Checks:**\n- Warning is returned\n- Stored flagged policy-incomplete"
      },
      "event": [
       {
@@ -1662,7 +1698,7 @@
         }
        ]
       },
-      "description": ""
+      "description": "**What it does:** Found with the incomplete flag (console Incomplete filter).\n\n**Request:** `GET /AuditEvent?_tag=https://akhester.com/chester/tags|policy-incomplete&event-uid={{u07e}}`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Expected result:** HTTP 200.\n\n**Checks:**\n- Search total is 1\n\n**Needs an earlier request:** uses `{{u07e}}`, saved by \"TC05 step 4 - everything present but no purposeOfEvent\". Run the whole collection (or the whole folder from the top), not this request alone."
      },
      "event": [
       {
@@ -1677,7 +1713,8 @@
       }
      ]
     }
-   ]
+   ],
+   "description": "**Purpose:** Incomplete events: some are refused, some are accepted and flagged.\n\n**Why it matters:** Missing core fields (recorded time, agent, source observer, event type) make an event useless as evidence, so Chester refuses it. A missing purpose of use is different: the event is kept but marked policy-incomplete, so the gap is visible and can be chased.\n\n**How it is tested:** Sends four events that each lack one core field and expects HTTP 422 naming the missing element and nothing stored. Then sends one that has everything except purposeOfEvent: expects 201 with a warning, stored with the policy-incomplete flag, and found by the console's Incomplete filter.\n\nRun the whole collection from the top. Requests in a folder depend on earlier ones."
   },
   {
    "name": "TC06 - A disclosure to another facility is recorded",
@@ -1714,7 +1751,7 @@
         }
        }
       },
-      "description": ""
+      "description": "**What it does:** Source system sends a disclosure event (recipient + legal-basis).\n\n**Request:** `POST /AuditEvent`\n\n**Sent as:** NEHR (sending system), using Keycloak client `chester-test-nehr-qa`. Role: AUDIT_WRITER: may only send events.\n\n**Expected result:** HTTP 201."
      },
      "event": [
       {
@@ -1762,7 +1799,7 @@
         }
        ]
       },
-      "description": ""
+      "description": "**What it does:** Auditor finds the disclosure by patient.\n\n**Request:** `GET /AuditEvent?entity-ref=Patient/QA-{{run}}-DISC`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Expected result:** HTTP 200.\n\n**Checks:**\n- Search total is 1"
      },
      "event": [
       {
@@ -1798,7 +1835,7 @@
         "{{id08}}"
        ]
       },
-      "description": ""
+      "description": "**What it does:** Record matches the notes (who, patient, kind, recipient, legal basis, time, outcome).\n\n**Request:** `GET /AuditEvent/{{id08}}`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Checks:**\n- Who shared\n- Patient, time, outcome\n- Kind of record, not its content\n- Recipient and legal basis are in the details\n\n**Needs an earlier request:** uses `{{id08}}`, saved by \"TC06 step 2 - auditor finds the disclosure by patient\". Run the whole collection (or the whole folder from the top), not this request alone."
      },
      "event": [
       {
@@ -1848,7 +1885,7 @@
         }
        }
       },
-      "description": ""
+      "description": "**What it does:** A disclosure without recipient or legal basis is still accepted (not required in the MVP).\n\n**Request:** `POST /AuditEvent`\n\n**Sent as:** NEHR (sending system), using Keycloak client `chester-test-nehr-qa`. Role: AUDIT_WRITER: may only send events.\n\n**Expected result:** HTTP 201."
      },
      "event": [
       {
@@ -1871,7 +1908,8 @@
       }
      ]
     }
-   ]
+   ],
+   "description": "**Purpose:** A disclosure of records to another facility must be recorded, with recipient and legal basis.\n\n**Why it matters:** Sharing a patient's record outside the facility is a key privacy event. The audit record shows who shared it, what kind of record, with whom and under what legal basis, but never the clinical content.\n\n**How it is tested:** NEHR sends a disclosure event. The auditor finds it by patient and checks who shared, patient, time, outcome, the kind of record (not its content), and that recipient and legal basis appear in the details. A last request shows that a disclosure without recipient or legal basis is still accepted in the MVP.\n\nRun the whole collection from the top. Requests in a folder depend on earlier ones."
   },
   {
    "name": "TC07 - Search and filter",
@@ -1908,7 +1946,7 @@
         }
        }
       },
-      "description": ""
+      "description": "**What it does:** Login event, Hospital A, user 1, visit 1 (now).\n\n**Request:** `POST /AuditEvent`\n\n**Sent as:** Client Registry (sending system), using Keycloak client `chester-test-cr-qa`. Role: AUDIT_WRITER: may only send events, cannot read.\n\n**Expected result:** HTTP 201."
      },
      "event": [
       {
@@ -1963,7 +2001,7 @@
         }
        }
       },
-      "description": ""
+      "description": "**What it does:** View event, Hospital B, user 2, visit 2 (10 days ago).\n\n**Request:** `POST /AuditEvent`\n\n**Sent as:** NEHR (sending system), using Keycloak client `chester-test-nehr-qa`. Role: AUDIT_WRITER: may only send events.\n\n**Expected result:** HTTP 201."
      },
      "event": [
       {
@@ -2020,7 +2058,7 @@
         }
        }
       },
-      "description": ""
+      "description": "**What it does:** Change event, Hospital A, user 1, same patient as seed 2 (20 days ago).\n\n**Request:** `POST /AuditEvent`\n\n**Sent as:** Client Registry (sending system), using Keycloak client `chester-test-cr-qa`. Role: AUDIT_WRITER: may only send events, cannot read.\n\n**Expected result:** HTTP 201."
      },
      "event": [
       {
@@ -2069,7 +2107,7 @@
         }
        ]
       },
-      "description": ""
+      "description": "**What it does:** By patient.\n\n**Request:** `GET /AuditEvent?entity-ref=Patient/QA-{{run}}-S2`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Expected result:** HTTP 200.\n\n**Checks:**\n- Search total is 2"
      },
      "event": [
       {
@@ -2109,7 +2147,7 @@
         }
        ]
       },
-      "description": ""
+      "description": "**What it does:** By practitioner (user).\n\n**Request:** `GET /AuditEvent?agent-ref=Practitioner/QA-{{run}}-U1`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Expected result:** HTTP 200.\n\n**Checks:**\n- Search total is 2"
      },
      "event": [
       {
@@ -2157,7 +2195,7 @@
         }
        ]
       },
-      "description": ""
+      "description": "**What it does:** By date range (day of seed 2 only).\n\n**Request:** `GET /AuditEvent?date=ge{{t09_12d}}&date=le{{t09_8d}}&entity-ref=Patient/QA-{{run}}-S2`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Expected result:** HTTP 200.\n\n**Checks:**\n- Search total is 1\n- It is seed 2"
      },
      "event": [
       {
@@ -2216,7 +2254,7 @@
         }
        ]
       },
-      "description": ""
+      "description": "**What it does:** The first and last instant of the range are included.\n\n**Request:** `GET /AuditEvent?date=ge{{rec09b}}&date=le{{rec09b}}&entity-ref=Patient/QA-{{run}}-S2`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Expected result:** HTTP 200.\n\n**Checks:**\n- Search total is 1\n\n**Needs an earlier request:** uses `{{rec09b}}`, saved by \"TC07 seed 2 - view event, Hospital B, user 2, visit 2 (10 days ago)\". Run the whole collection (or the whole folder from the top), not this request alone."
      },
      "event": [
       {
@@ -2260,7 +2298,7 @@
         }
        ]
       },
-      "description": ""
+      "description": "**What it does:** By transaction subtype (110122 login).\n\n**Request:** `GET /AuditEvent?subtype=110122&entity-ref=Patient/QA-{{run}}-S1`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Expected result:** HTTP 200.\n\n**Checks:**\n- Search total is 1"
      },
      "event": [
       {
@@ -2304,7 +2342,7 @@
         }
        ]
       },
-      "description": ""
+      "description": "**What it does:** By action (Changed = U).\n\n**Request:** `GET /AuditEvent?action=U&entity-ref=Patient/QA-{{run}}-S2`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Expected result:** HTTP 200.\n\n**Checks:**\n- Search total is 1"
      },
      "event": [
       {
@@ -2348,7 +2386,7 @@
         }
        ]
       },
-      "description": ""
+      "description": "**What it does:** By type (rest) narrowed to this run.\n\n**Request:** `GET /AuditEvent?type=rest&agent-ref=Practitioner/QA-{{run}}-U2`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Expected result:** HTTP 200.\n\n**Checks:**\n- Search total is 1"
      },
      "event": [
       {
@@ -2388,7 +2426,7 @@
         }
        ]
       },
-      "description": ""
+      "description": "**What it does:** By source system (observer device).\n\n**Request:** `GET /AuditEvent?source-ref=Device/qa-{{run}}-a`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Expected result:** HTTP 200.\n\n**Checks:**\n- Search total is 2"
      },
      "event": [
       {
@@ -2414,7 +2452,7 @@
        }
       ],
       "url": {
-       "raw": "{{chester_base}}/AuditEvent?_tag=https://akhester.com/chester/submitting-client|nehr&agent-ref=Practitioner/QA-{{run}}-U2",
+       "raw": "{{chester_base}}/AuditEvent?_tag=https://akhester.com/chester/submitting-client|{{client_nehr}}&agent-ref=Practitioner/QA-{{run}}-U2",
        "host": [
         "{{chester_base}}"
        ],
@@ -2424,7 +2462,7 @@
        "query": [
         {
          "key": "_tag",
-         "value": "https://akhester.com/chester/submitting-client|nehr"
+         "value": "https://akhester.com/chester/submitting-client|{{client_nehr}}"
         },
         {
          "key": "agent-ref",
@@ -2432,7 +2470,7 @@
         }
        ]
       },
-      "description": ""
+      "description": "**What it does:** By submitting client (Submitted by).\n\n**Request:** `GET /AuditEvent?_tag=https://akhester.com/chester/submitting-client|{{client_nehr}}&agent-ref=Practitioner/QA-{{run}}-U2`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Expected result:** HTTP 200.\n\n**Checks:**\n- Search total is 1"
      },
      "event": [
       {
@@ -2472,7 +2510,7 @@
         }
        ]
       },
-      "description": ""
+      "description": "**What it does:** By facility / department (source site).\n\n**Request:** `GET /AuditEvent?site=QA-HOSP-B-{{run}}`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Expected result:** HTTP 200.\n\n**Checks:**\n- Search total is 1"
      },
      "event": [
       {
@@ -2512,7 +2550,7 @@
         }
        ]
       },
-      "description": ""
+      "description": "**What it does:** By visit (encounter).\n\n**Request:** `GET /AuditEvent?entity-ref=Encounter/QA-{{run}}-V2`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Expected result:** HTTP 200.\n\n**Checks:**\n- Search total is 1"
      },
      "event": [
       {
@@ -2560,7 +2598,7 @@
         }
        ]
       },
-      "description": ""
+      "description": "**What it does:** Patient and date range together.\n\n**Request:** `GET /AuditEvent?entity-ref=Patient/QA-{{run}}-S2&date=ge{{t09_12d}}&date=le{{t09_8d}}`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Expected result:** HTTP 200.\n\n**Checks:**\n- Search total is 1\n\n**Needs an earlier request:** uses `{{t09_12d}}`, `{{t09_8d}}`, saved by \"TC07 step 4 - by date range (day of seed 2 only)\". Run the whole collection (or the whole folder from the top), not this request alone."
      },
      "event": [
       {
@@ -2600,7 +2638,7 @@
         }
        ]
       },
-      "description": ""
+      "description": "**What it does:** A patient with no history: 200 and total 0.\n\n**Request:** `GET /AuditEvent?entity-ref=Patient/QA-{{run}}-NOBODY`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Expected result:** HTTP 200.\n\n**Checks:**\n- Search total is 0"
      },
      "event": [
       {
@@ -2615,7 +2653,8 @@
       }
      ]
     }
-   ]
+   ],
+   "description": "**Purpose:** Search and filter: every way an auditor may look for events works and returns exactly the right ones.\n\n**Why it matters:** Auditors are only useful if they can find the events they care about. Each search must return the right count and not more.\n\n**How it is tested:** Seeds three events, then searches by patient, practitioner, date range (including the boundary instants), transaction subtype, action, type, source system, submitting client, facility, visit (encounter), patient with date, and a patient with no history (200 with total 0).\n\nRun the whole collection from the top. Requests in a folder depend on earlier ones."
   },
   {
    "name": "TC08 - Many events at once",
@@ -2651,7 +2690,8 @@
          "language": "json"
         }
        }
-      }
+      },
+      "description": "**What it does:** Send one event (repeats until tc10_n events are accepted; waits and resends on 503).\n\n**Request:** `POST /AuditEvent`\n\n**Sent as:** a plain sending system, using Keycloak client `chester-test-tc10-qa`. Role: AUDIT_WRITER: may only send events.\n\n**Checks:**\n- Chester asked to wait (Retry-After present)\n- Event accepted (201)\n\n**Note:** This request repeats itself until tc10_n events (default 20) have been accepted. On 503 (busy) it waits and sends the same event again. At the start of each run the counters are cleared by the collection script."
      },
      "event": [
       {
@@ -2707,7 +2747,7 @@
         }
        ]
       },
-      "description": ""
+      "description": "**What it does:** Count the records stored for this batch.\n\n**Request:** `GET /AuditEvent?correlation-id={{tc10_run}}-{{run}}&_summary=count`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Expected result:** HTTP 200.\n\n**Checks:**\n- Stored count equals the number sent"
      },
      "event": [
       {
@@ -2751,7 +2791,7 @@
         }
        ]
       },
-      "description": ""
+      "description": "**What it does:** Each submitted uid appears exactly once.\n\n**Request:** `GET /AuditEvent?correlation-id={{tc10_run}}-{{run}}&_count=100`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Expected result:** HTTP 200.\n\n**Checks:**\n- One record per uid, none missing, none duplicated"
      },
      "event": [
       {
@@ -2786,7 +2826,7 @@
         "$verify-chain"
        ]
       },
-      "description": ""
+      "description": "**What it does:** The hash chain is valid.\n\n**Request:** `GET /$verify-chain`\n\n**Sent as:** administrator, using Keycloak client `chester-test-admin-qa`. Role: AUDIT_ADMIN: may read every event and verify the hash chain.\n\n**Expected result:** HTTP 200.\n\n**Checks:**\n- Chain valid"
      },
      "event": [
       {
@@ -2801,7 +2841,8 @@
       }
      ]
     }
-   ]
+   ],
+   "description": "**Purpose:** Many events at once: the repository accepts a batch of events and stores each exactly once.\n\n**Why it matters:** Real systems send bursts. Every event must be stored, none lost and none doubled, and the hash chain must stay valid.\n\n**How it is tested:** Sends events one at a time until the batch size (tc10_n, default 20) is accepted, waiting and resending when Chester answers 503 (busy). Then counts what was stored for this batch, checks that each uid appears exactly once, and verifies the hash chain.\n\nRun the whole collection from the top. Requests in a folder depend on earlier ones."
   },
   {
    "name": "TC09 - Events are shown in time order",
@@ -2838,7 +2879,7 @@
         }
        }
       },
-      "description": ""
+      "description": "**What it does:** Registries sends an event (4 minutes ago).\n\n**Request:** `POST /AuditEvent`\n\n**Sent as:** Client Registry (sending system), using Keycloak client `chester-test-cr-qa`. Role: AUDIT_WRITER: may only send events, cannot read.\n\n**Expected result:** HTTP 201."
      },
      "event": [
       {
@@ -2895,7 +2936,7 @@
         }
        }
       },
-      "description": ""
+      "description": "**What it does:** NEHR sends an event (3 minutes ago).\n\n**Request:** `POST /AuditEvent`\n\n**Sent as:** NEHR (sending system), using Keycloak client `chester-test-nehr-qa`. Role: AUDIT_WRITER: may only send events.\n\n**Expected result:** HTTP 201."
      },
      "event": [
       {
@@ -2951,7 +2992,7 @@
         }
        }
       },
-      "description": ""
+      "description": "**What it does:** E-Referral sends an event (2 minutes ago).\n\n**Request:** `POST /AuditEvent`\n\n**Sent as:** e-Referral (sending system), using Keycloak client `chester-test-ereferral-qa`. Role: AUDIT_WRITER: may only send events.\n\n**Expected result:** HTTP 201."
      },
      "event": [
       {
@@ -3004,7 +3045,7 @@
         }
        ]
       },
-      "description": ""
+      "description": "**What it does:** Sorted by time, in the order sent; each time equals the time sent.\n\n**Request:** `GET /AuditEvent?entity-ref=Patient/QA-{{run}}-TIME&_sort=date`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Expected result:** HTTP 200.\n\n**Checks:**\n- Search total is 3\n- Order: Registries, NEHR, e-Referral\n- Step 3: each recorded time equals the time sent\n- Step 3: Chester received time is within a few seconds of the recorded time for an online sender (the sender clock here is the test machine)"
      },
      "event": [
       {
@@ -3022,7 +3063,8 @@
       }
      ]
     }
-   ]
+   ],
+   "description": "**Purpose:** Events are shown in time order.\n\n**Why it matters:** Auditors read events as a story. The order must follow the time they happened, and each time must equal the time the sender gave.\n\n**How it is tested:** Three systems send events with times 4, 3 and 2 minutes ago. The auditor searches sorted by time and expects them in that order with each recorded time exactly as sent.\n\nRun the whole collection from the top. Requests in a folder depend on earlier ones."
   },
   {
    "name": "TC10 - Requests without a valid token are refused",
@@ -3055,7 +3097,7 @@
         }
        }
       },
-      "description": ""
+      "description": "**What it does:** No token.\n\n**Request:** `POST /AuditEvent`\n\n**Sent as:** nobody (no token).\n\n**Expected result:** HTTP 401.\n\n**Note:** No Authorization header is sent at all."
      },
      "event": [
       {
@@ -3085,7 +3127,7 @@
       "header": [
        {
         "key": "Authorization",
-        "value": "Bearer not-a-real-token"
+        "value": "Bearer {{garbage_token}}"
        },
        {
         "key": "Content-Type",
@@ -3110,7 +3152,7 @@
         }
        }
       },
-      "description": ""
+      "description": "**What it does:** Garbage token.\n\n**Request:** `POST /AuditEvent`\n\n**Token used:** a made-up text that is not a token (source: built by the collection script). Plain invalid text.\n\n**Expected result:** HTTP 401.\n\n**Needs an earlier request:** uses `{{u33}}`, saved by \"TC10 step 1 - no token\". Run the whole collection (or the whole folder from the top), not this request alone.\n\n**Note:** The Authorization header holds plain text that is not a token. The collection script builds it at run time."
      },
      "event": [
       {
@@ -3156,7 +3198,7 @@
         }
        }
       },
-      "description": ""
+      "description": "**What it does:** Tampered token (signature changed).\n\n**Request:** `POST /AuditEvent`\n\n**Token used:** a token with a damaged signature (source: made by the script from the cr token). A real token whose signature has been changed.\n\n**Expected result:** HTTP 401.\n\n**Needs an earlier request:** uses `{{u33}}`, saved by \"TC10 step 1 - no token\". Run the whole collection (or the whole folder from the top), not this request alone.\n\n**Note:** The script takes a real token and changes the last characters of its signature, so the token no longer verifies."
      },
      "event": [
       {
@@ -3202,9 +3244,20 @@
         }
        }
       },
-      "description": ""
+      "description": "**What it does:** Expired token.\n\n**Request:** `POST /AuditEvent`\n\n**Token used:** an expired token (source: chester-test-expired-qa). A token that lives one second and is used after it has expired.\n\n**Expected result:** HTTP 401.\n\n**Needs an earlier request:** uses `{{u33}}`, saved by \"TC10 step 1 - no token\". Run the whole collection (or the whole folder from the top), not this request alone.\n\n**Note:** This client issues tokens that live one second. The request waits until the token is at least 40 seconds old before it is sent, because Chester allows 30 seconds of clock difference. This is why the run pauses here."
      },
      "event": [
+      {
+       "listen": "prerequest",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "var at = parseInt(pm.environment.get('expired_at') || '0');",
+         "var wait = at ? Math.max(0, 40000 - (Date.now() - at)) : 0;   // Chester allows 30 s of clock skew",
+         "if (wait > 0) { console.log('waiting ' + Math.round(wait/1000) + ' s for the one-second token to expire'); setTimeout(function () {}, wait); }"
+        ]
+       }
+      },
       {
        "listen": "test",
        "script": {
@@ -3248,7 +3301,7 @@
         }
        }
       },
-      "description": ""
+      "description": "**What it does:** Token for another API (wrong audience).\n\n**Request:** `POST /AuditEvent`\n\n**Token used:** a token meant for a different API (source: chester-test-wrongaud-qa). Valid token, but its audience is some-other-api, not Chester.\n\n**Expected result:** HTTP 401.\n\n**Needs an earlier request:** uses `{{u33}}`, saved by \"TC10 step 1 - no token\". Run the whole collection (or the whole folder from the top), not this request alone.\n\n**Note:** A genuine token from Keycloak, but its audience is some-other-api, not the Chester audience."
      },
      "event": [
       {
@@ -3294,7 +3347,7 @@
         }
        }
       },
-      "description": ""
+      "description": "**What it does:** Token from another issuer.\n\n**Request:** `POST /AuditEvent`\n\n**Token used:** a token claiming another issuer (source: made by the script from the cr token). A real token whose issuer text has been rewritten (see the note on the request).\n\n**Expected result:** HTTP 401.\n\n**Needs an earlier request:** uses `{{u33}}`, saved by \"TC10 step 1 - no token\". Run the whole collection (or the whole folder from the top), not this request alone.\n\n**Note:** Keycloak cannot issue a token under another issuer name, so the script rewrites the issuer text in a real token. Chester refuses it because the signature no longer matches. This proves signature checking; it does not test the issuer comparison on its own."
      },
      "event": [
       {
@@ -3333,7 +3386,7 @@
         }
        ]
       },
-      "description": ""
+      "description": "**What it does:** Nothing was stored for any of them.\n\n**Request:** `GET /AuditEvent?event-uid={{u33}}`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Expected result:** HTTP 200.\n\n**Checks:**\n- Search total is 0\n\n**Needs an earlier request:** uses `{{u33}}`, saved by \"TC10 step 1 - no token\". Run the whole collection (or the whole folder from the top), not this request alone."
      },
      "event": [
       {
@@ -3348,7 +3401,8 @@
       }
      ]
     }
-   ]
+   ],
+   "description": "**Purpose:** Requests without a valid token are refused.\n\n**Why it matters:** No token, or a token that is forged, expired or meant for something else, must never reach the audit store.\n\n**How it is tested:** Tries to write with: no token, a made-up token, a token with a damaged signature, an expired token, a token for another API (wrong audience) and a token claiming another issuer. Every one must return 401. A final search proves nothing was stored.\n\nRun the whole collection from the top. Requests in a folder depend on earlier ones."
   },
   {
    "name": "TC11 - Only a sending system can write",
@@ -3385,7 +3439,7 @@
         }
        }
       },
-      "description": ""
+      "description": "**What it does:** Ministry auditor (read role) tries to write.\n\n**Request:** `POST /AuditEvent`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Expected result:** HTTP 403."
      },
      "event": [
       {
@@ -3440,7 +3494,7 @@
         }
        }
       },
-      "description": ""
+      "description": "**What it does:** Break-glass reviewer tries to write.\n\n**Request:** `POST /AuditEvent`\n\n**Sent as:** break-glass reviewer, using Keycloak client `chester-test-btg-qa`. Role: BTG_REVIEWER: may read break-glass events only, cannot write.\n\n**Expected result:** HTTP 403.\n\n**Needs an earlier request:** uses `{{u34}}`, saved by \"TC11 step 1 - Ministry auditor (read role) tries to write\". Run the whole collection (or the whole folder from the top), not this request alone."
      },
      "event": [
       {
@@ -3486,7 +3540,7 @@
         }
        }
       },
-      "description": ""
+      "description": "**What it does:** Token with both writer and reader roles.\n\n**Request:** `POST /AuditEvent`\n\n**Sent as:** user who is both writer and reader, using Keycloak client `chester-test-writer-reader-qa`. Role: AUDIT_WRITER and MINISTRY_AUDITOR together (must be refused).\n\n**Expected result:** HTTP 403.\n\n**Needs an earlier request:** uses `{{u34}}`, saved by \"TC11 step 1 - Ministry auditor (read role) tries to write\". Run the whole collection (or the whole folder from the top), not this request alone."
      },
      "event": [
       {
@@ -3525,7 +3579,7 @@
         }
        ]
       },
-      "description": ""
+      "description": "**What it does:** Nothing was stored.\n\n**Request:** `GET /AuditEvent?event-uid={{u34}}`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Expected result:** HTTP 200.\n\n**Checks:**\n- Search total is 0\n\n**Needs an earlier request:** uses `{{u34}}`, saved by \"TC11 step 1 - Ministry auditor (read role) tries to write\". Run the whole collection (or the whole folder from the top), not this request alone."
      },
      "event": [
       {
@@ -3540,7 +3594,8 @@
       }
      ]
     }
-   ]
+   ],
+   "description": "**Purpose:** Only a sending system can write.\n\n**Why it matters:** Readers and reviewers must not be able to add or change audit records, even by accident.\n\n**How it is tested:** The Ministry auditor, the break-glass reviewer and a token with both writer and reader roles each try to send an event. All must return 403 and nothing may be stored.\n\nRun the whole collection from the top. Requests in a folder depend on earlier ones."
   },
   {
    "name": "TC12 - A sending system cannot read audit records",
@@ -3577,7 +3632,7 @@
         }
        }
       },
-      "description": ""
+      "description": "**What it does:** An event exists.\n\n**Request:** `POST /AuditEvent`\n\n**Sent as:** Client Registry (sending system), using Keycloak client `chester-test-cr-qa`. Role: AUDIT_WRITER: may only send events, cannot read.\n\n**Expected result:** HTTP 201."
      },
      "event": [
       {
@@ -3626,7 +3681,7 @@
         }
        ]
       },
-      "description": ""
+      "description": "**What it does:** Sending system tries to search.\n\n**Request:** `GET /AuditEvent?event-uid={{u35}}`\n\n**Sent as:** Client Registry (sending system), using Keycloak client `chester-test-cr-qa`. Role: AUDIT_WRITER: may only send events, cannot read.\n\n**Expected result:** HTTP 403.\n\n**Needs an earlier request:** uses `{{u35}}`, saved by \"TC12 setup - an event exists\". Run the whole collection (or the whole folder from the top), not this request alone."
      },
      "event": [
       {
@@ -3665,7 +3720,7 @@
         }
        ]
       },
-      "description": ""
+      "description": "**What it does:** Sending system tries to count.\n\n**Request:** `GET /AuditEvent?_summary=count`\n\n**Sent as:** Client Registry (sending system), using Keycloak client `chester-test-cr-qa`. Role: AUDIT_WRITER: may only send events, cannot read.\n\n**Expected result:** HTTP 403."
      },
      "event": [
       {
@@ -3699,7 +3754,7 @@
         "{{u35_id}}"
        ]
       },
-      "description": ""
+      "description": "**What it does:** Sending system tries to read by id.\n\n**Request:** `GET /AuditEvent/{{u35_id}}`\n\n**Sent as:** Client Registry (sending system), using Keycloak client `chester-test-cr-qa`. Role: AUDIT_WRITER: may only send events, cannot read.\n\n**Expected result:** HTTP 403.\n\n**Needs an earlier request:** uses `{{u35_id}}`, saved by \"TC12 setup - an event exists\". Run the whole collection (or the whole folder from the top), not this request alone."
      },
      "event": [
       {
@@ -3733,7 +3788,7 @@
         "{{u35_id}}"
        ]
       },
-      "description": ""
+      "description": "**What it does:** The auditor can still read it.\n\n**Request:** `GET /AuditEvent/{{u35_id}}`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Expected result:** HTTP 200.\n\n**Needs an earlier request:** uses `{{u35_id}}`, saved by \"TC12 setup - an event exists\". Run the whole collection (or the whole folder from the top), not this request alone."
      },
      "event": [
       {
@@ -3747,7 +3802,8 @@
       }
      ]
     }
-   ]
+   ],
+   "description": "**Purpose:** A sending system cannot read audit records.\n\n**Why it matters:** A system that writes events must not be able to look at what others, or it, have written.\n\n**How it is tested:** After a setup event is stored, the sending system tries to search, count and open a record by id. All must return 403. The auditor can still read the same event.\n\nRun the whole collection from the top. Requests in a folder depend on earlier ones."
   },
   {
    "name": "TC13 - A facility auditor sees only their own facility",
@@ -3784,7 +3840,7 @@
         }
        }
       },
-      "description": ""
+      "description": "**What it does:** An event from facility FAC-0001.\n\n**Request:** `POST /AuditEvent`\n\n**Sent as:** Client Registry (sending system), using Keycloak client `chester-test-cr-qa`. Role: AUDIT_WRITER: may only send events, cannot read.\n\n**Expected result:** HTTP 201."
      },
      "event": [
       {
@@ -3833,7 +3889,7 @@
         }
        ]
       },
-      "description": ""
+      "description": "**What it does:** Facility auditor of FAC-0001 sees it.\n\n**Request:** `GET /AuditEvent?entity-ref=Patient/QA-{{run}}-FACPAT`\n\n**Sent as:** facility auditor for FAC-0001, using Keycloak client `chester-test-facility1-qa`. Role: FACILITY_AUDITOR with facility_id Organization/FAC-0001.\n\n**Expected result:** HTTP 200.\n\n**Checks:**\n- Search total is 1"
      },
      "event": [
       {
@@ -3868,7 +3924,7 @@
         "{{u36_id}}"
        ]
       },
-      "description": ""
+      "description": "**What it does:** And can open it by id.\n\n**Request:** `GET /AuditEvent/{{u36_id}}`\n\n**Sent as:** facility auditor for FAC-0001, using Keycloak client `chester-test-facility1-qa`. Role: FACILITY_AUDITOR with facility_id Organization/FAC-0001.\n\n**Expected result:** HTTP 200.\n\n**Needs an earlier request:** uses `{{u36_id}}`, saved by \"TC13 setup - an event from facility FAC-0001\". Run the whole collection (or the whole folder from the top), not this request alone."
      },
      "event": [
       {
@@ -3907,7 +3963,7 @@
         }
        ]
       },
-      "description": ""
+      "description": "**What it does:** Facility auditor of FAC-0002 finds nothing.\n\n**Request:** `GET /AuditEvent?entity-ref=Patient/QA-{{run}}-FACPAT`\n\n**Sent as:** facility auditor for FAC-0002, using Keycloak client `chester-test-facility2-qa`. Role: FACILITY_AUDITOR with facility_id Organization/FAC-0002.\n\n**Expected result:** HTTP 200.\n\n**Checks:**\n- Search total is 0"
      },
      "event": [
       {
@@ -3942,7 +3998,7 @@
         "{{u36_id}}"
        ]
       },
-      "description": ""
+      "description": "**What it does:** And cannot open it by id (404, no hint that it exists).\n\n**Request:** `GET /AuditEvent/{{u36_id}}`\n\n**Sent as:** facility auditor for FAC-0002, using Keycloak client `chester-test-facility2-qa`. Role: FACILITY_AUDITOR with facility_id Organization/FAC-0002.\n\n**Expected result:** HTTP 404.\n\n**Needs an earlier request:** uses `{{u36_id}}`, saved by \"TC13 setup - an event from facility FAC-0001\". Run the whole collection (or the whole folder from the top), not this request alone."
      },
      "event": [
       {
@@ -3981,7 +4037,7 @@
         }
        ]
       },
-      "description": ""
+      "description": "**What it does:** Facility auditor token with no facility is refused.\n\n**Request:** `GET /AuditEvent?entity-ref=Patient/QA-{{run}}-FACPAT`\n\n**Sent as:** facility auditor with no facility claim, using Keycloak client `chester-test-facility-noclaim-qa`. Role: FACILITY_AUDITOR but the token has no facility_id (must be refused).\n\n**Expected result:** HTTP 403."
      },
      "event": [
       {
@@ -4020,7 +4076,7 @@
         }
        ]
       },
-      "description": ""
+      "description": "**What it does:** Token naming two facilities is refused.\n\n**Request:** `GET /AuditEvent?entity-ref=Patient/QA-{{run}}-FACPAT`\n\n**Sent as:** facility auditor naming two facilities, using Keycloak client `chester-test-facility-multi-qa`. Role: FACILITY_AUDITOR with two facility_id values (must be refused).\n\n**Expected result:** HTTP 403."
      },
      "event": [
       {
@@ -4059,7 +4115,7 @@
         }
        ]
       },
-      "description": ""
+      "description": "**What it does:** Token that is both facility and patient scoped is refused.\n\n**Request:** `GET /AuditEvent?entity-ref=Patient/QA-{{run}}-FACPAT`\n\n**Sent as:** user with both a facility and a patient scope, using Keycloak client `chester-test-twoscoped-qa`. Role: FACILITY_AUDITOR and PATIENT_PORTAL together (must be refused).\n\n**Expected result:** HTTP 403."
      },
      "event": [
       {
@@ -4073,7 +4129,8 @@
       }
      ]
     }
-   ]
+   ],
+   "description": "**Purpose:** A facility auditor sees only their own facility's events.\n\n**Why it matters:** A facility auditor from one hospital must not see another hospital's events, nor learn that they exist.\n\n**How it is tested:** An event from facility FAC-0001 is stored. The FAC-0001 auditor finds it and opens it. The FAC-0002 auditor finds nothing and gets 404 on the id (no hint it exists). Tokens with no facility claim, two facility claims, or both a facility and a patient scope are refused with 403.\n\nRun the whole collection from the top. Requests in a folder depend on earlier ones."
   },
   {
    "name": "TC14 - A patient sees only their own records",
@@ -4110,7 +4167,7 @@
         }
        }
       },
-      "description": ""
+      "description": "**What it does:** An event about patient PAT-0001.\n\n**Request:** `POST /AuditEvent`\n\n**Sent as:** Client Registry (sending system), using Keycloak client `chester-test-cr-qa`. Role: AUDIT_WRITER: may only send events, cannot read.\n\n**Expected result:** HTTP 201."
      },
      "event": [
       {
@@ -4166,7 +4223,7 @@
         }
        }
       },
-      "description": ""
+      "description": "**What it does:** An event about another patient.\n\n**Request:** `POST /AuditEvent`\n\n**Sent as:** Client Registry (sending system), using Keycloak client `chester-test-cr-qa`. Role: AUDIT_WRITER: may only send events, cannot read.\n\n**Expected result:** HTTP 201."
      },
      "event": [
       {
@@ -4210,7 +4267,7 @@
         "{{u37a_id}}"
        ]
       },
-      "description": ""
+      "description": "**What it does:** The patient opens their own record.\n\n**Request:** `GET /AuditEvent/{{u37a_id}}`\n\n**Sent as:** patient (portal), using Keycloak client `chester-test-portal-qa`. Role: PATIENT_PORTAL with patient_id Patient/PAT-0001.\n\n**Expected result:** HTTP 200.\n\n**Needs an earlier request:** uses `{{u37a_id}}`, saved by \"TC14 setup - an event about patient PAT-0001\". Run the whole collection (or the whole folder from the top), not this request alone."
      },
      "event": [
       {
@@ -4244,7 +4301,7 @@
         "{{u37b_id}}"
        ]
       },
-      "description": ""
+      "description": "**What it does:** The patient tries another patient's record (404).\n\n**Request:** `GET /AuditEvent/{{u37b_id}}`\n\n**Sent as:** patient (portal), using Keycloak client `chester-test-portal-qa`. Role: PATIENT_PORTAL with patient_id Patient/PAT-0001.\n\n**Expected result:** HTTP 404.\n\n**Needs an earlier request:** uses `{{u37b_id}}`, saved by \"TC14 setup - an event about another patient\". Run the whole collection (or the whole folder from the top), not this request alone."
      },
      "event": [
       {
@@ -4283,7 +4340,7 @@
         }
        ]
       },
-      "description": ""
+      "description": "**What it does:** The patient searches for another patient.\n\n**Request:** `GET /AuditEvent?entity-ref=Patient/QA-{{run}}-OTHER`\n\n**Sent as:** patient (portal), using Keycloak client `chester-test-portal-qa`. Role: PATIENT_PORTAL with patient_id Patient/PAT-0001.\n\n**Expected result:** HTTP 200.\n\n**Checks:**\n- Search total is 0"
      },
      "event": [
       {
@@ -4298,7 +4355,8 @@
       }
      ]
     }
-   ]
+   ],
+   "description": "**Purpose:** A patient sees only their own records.\n\n**Why it matters:** A patient portal user must see only events about themselves.\n\n**How it is tested:** Events are stored about patient PAT-0001 and about another patient. The PAT-0001 portal user opens their own record (200), gets 404 on the other patient's record, and a search for the other patient returns nothing.\n\nRun the whole collection from the top. Requests in a folder depend on earlier ones."
   },
   {
    "name": "TC15 - Only an administrator can verify the chain",
@@ -4322,7 +4380,7 @@
         "$verify-chain"
        ]
       },
-      "description": ""
+      "description": "**What it does:** Sending system tries to verify the chain.\n\n**Request:** `GET /$verify-chain`\n\n**Sent as:** Client Registry (sending system), using Keycloak client `chester-test-cr-qa`. Role: AUDIT_WRITER: may only send events, cannot read.\n\n**Expected result:** HTTP 403."
      },
      "event": [
       {
@@ -4355,7 +4413,7 @@
         "$verify-chain"
        ]
       },
-      "description": ""
+      "description": "**What it does:** Facility auditor tries to verify the chain.\n\n**Request:** `GET /$verify-chain`\n\n**Sent as:** facility auditor for FAC-0001, using Keycloak client `chester-test-facility1-qa`. Role: FACILITY_AUDITOR with facility_id Organization/FAC-0001.\n\n**Expected result:** HTTP 403."
      },
      "event": [
       {
@@ -4383,7 +4441,7 @@
         "$verify-chain"
        ]
       },
-      "description": ""
+      "description": "**What it does:** No token.\n\n**Request:** `GET /$verify-chain`\n\n**Sent as:** nobody (no token).\n\n**Expected result:** HTTP 401.\n\n**Note:** No Authorization header is sent at all."
      },
      "event": [
       {
@@ -4416,7 +4474,7 @@
         "$verify-chain"
        ]
       },
-      "description": ""
+      "description": "**What it does:** Administrator can, and the chain is valid.\n\n**Request:** `GET /$verify-chain`\n\n**Sent as:** administrator, using Keycloak client `chester-test-admin-qa`. Role: AUDIT_ADMIN: may read every event and verify the hash chain.\n\n**Expected result:** HTTP 200.\n\n**Checks:**\n- Chain valid"
      },
      "event": [
       {
@@ -4431,7 +4489,8 @@
       }
      ]
     }
-   ]
+   ],
+   "description": "**Purpose:** Only an administrator can verify the hash chain.\n\n**Why it matters:** The hash chain proves no record has been altered. Running the check is an administrative action.\n\n**How it is tested:** A sending system, a facility auditor and a request with no token each try $verify-chain and are refused (403, 403, 401). The administrator can run it and the chain is valid.\n\nRun the whole collection from the top. Requests in a folder depend on earlier ones."
   },
   {
    "name": "TC16 - A repeated event is not stored twice, a clashing one is refused",
@@ -4468,7 +4527,7 @@
         }
        }
       },
-      "description": ""
+      "description": "**What it does:** Send an event.\n\n**Request:** `POST /AuditEvent`\n\n**Sent as:** Client Registry (sending system), using Keycloak client `chester-test-cr-qa`. Role: AUDIT_WRITER: may only send events, cannot read.\n\n**Expected result:** HTTP 201."
      },
      "event": [
       {
@@ -4523,7 +4582,7 @@
         }
        }
       },
-      "description": ""
+      "description": "**What it does:** Send exactly the same event again: answered with the original, nothing new stored.\n\n**Request:** `POST /AuditEvent`\n\n**Sent as:** Client Registry (sending system), using Keycloak client `chester-test-cr-qa`. Role: AUDIT_WRITER: may only send events, cannot read.\n\n**Expected result:** HTTP 200.\n\n**Checks:**\n- Marked as a duplicate\n\n**Needs an earlier request:** uses `{{u39}}`, saved by \"TC16 step 1 - send an event\". Run the whole collection (or the whole folder from the top), not this request alone."
      },
      "event": [
       {
@@ -4570,7 +4629,7 @@
         }
        }
       },
-      "description": ""
+      "description": "**What it does:** Same event id but different content: refused.\n\n**Request:** `POST /AuditEvent`\n\n**Sent as:** Client Registry (sending system), using Keycloak client `chester-test-cr-qa`. Role: AUDIT_WRITER: may only send events, cannot read.\n\n**Expected result:** HTTP 409.\n\n**Needs an earlier request:** uses `{{u39}}`, saved by \"TC16 step 1 - send an event\". Run the whole collection (or the whole folder from the top), not this request alone."
      },
      "event": [
       {
@@ -4609,7 +4668,7 @@
         }
        ]
       },
-      "description": ""
+      "description": "**What it does:** Still one record, content unchanged.\n\n**Request:** `GET /AuditEvent?event-uid={{u39}}`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Expected result:** HTTP 200.\n\n**Checks:**\n- Search total is 1\n- Outcome is still the original (0)\n\n**Needs an earlier request:** uses `{{u39}}`, saved by \"TC16 step 1 - send an event\". Run the whole collection (or the whole folder from the top), not this request alone."
      },
      "event": [
       {
@@ -4625,7 +4684,8 @@
       }
      ]
     }
-   ]
+   ],
+   "description": "**Purpose:** A repeated event is not stored twice, and a clashing one is refused.\n\n**Why it matters:** Systems retry after network failures. Sending the same event twice must not create two records, and reusing an event id for different content must not overwrite the first.\n\n**How it is tested:** Sends an event, then the identical event again (200 and marked duplicate, nothing new stored), then the same id with different content (409). A final search shows one record with its original content.\n\nRun the whole collection from the top. Requests in a folder depend on earlier ones."
   },
   {
    "name": "TC17 - An oversized event is refused",
@@ -4662,7 +4722,7 @@
         }
        }
       },
-      "description": ""
+      "description": "**What it does:** Event with a 20 KB detail value.\n\n**Request:** `POST /AuditEvent`\n\n**Sent as:** Client Registry (sending system), using Keycloak client `chester-test-cr-qa`. Role: AUDIT_WRITER: may only send events, cannot read.\n\n**Expected result:** HTTP 422."
      },
      "event": [
       {
@@ -4711,7 +4771,7 @@
         }
        ]
       },
-      "description": ""
+      "description": "**What it does:** Nothing was stored.\n\n**Request:** `GET /AuditEvent?event-uid={{u40}}`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Expected result:** HTTP 200.\n\n**Checks:**\n- Search total is 0\n\n**Needs an earlier request:** uses `{{u40}}`, saved by \"TC17 step 1 - event with a 20 KB detail value\". Run the whole collection (or the whole folder from the top), not this request alone."
      },
      "event": [
       {
@@ -4726,7 +4786,8 @@
       }
      ]
     }
-   ]
+   ],
+   "description": "**Purpose:** An oversized event is refused.\n\n**Why it matters:** Very large events could be used to smuggle data in or to overload the store.\n\n**How it is tested:** Sends an event with a 20 KB detail value. It must be refused with 422 and nothing stored.\n\nRun the whole collection from the top. Requests in a folder depend on earlier ones."
   },
   {
    "name": "TC18 - Personal or clinical data in an event is refused",
@@ -4763,7 +4824,7 @@
         }
        }
       },
-      "description": ""
+      "description": "**What it does:** Patient name in entity.name.\n\n**Request:** `POST /AuditEvent`\n\n**Sent as:** Client Registry (sending system), using Keycloak client `chester-test-cr-qa`. Role: AUDIT_WRITER: may only send events, cannot read.\n\n**Expected result:** HTTP 422."
      },
      "event": [
       {
@@ -4818,7 +4879,7 @@
         }
        }
       },
-      "description": ""
+      "description": "**What it does:** National ID number in the outcome text.\n\n**Request:** `POST /AuditEvent`\n\n**Sent as:** Client Registry (sending system), using Keycloak client `chester-test-cr-qa`. Role: AUDIT_WRITER: may only send events, cannot read.\n\n**Expected result:** HTTP 422.\n\n**Needs an earlier request:** uses `{{u41}}`, saved by \"TC18 step 1 - patient name in entity.name\". Run the whole collection (or the whole folder from the top), not this request alone."
      },
      "event": [
       {
@@ -4864,7 +4925,7 @@
         }
        }
       },
-      "description": ""
+      "description": "**What it does:** Search values in entity.query.\n\n**Request:** `POST /AuditEvent`\n\n**Sent as:** Client Registry (sending system), using Keycloak client `chester-test-cr-qa`. Role: AUDIT_WRITER: may only send events, cannot read.\n\n**Expected result:** HTTP 422.\n\n**Needs an earlier request:** uses `{{u41}}`, saved by \"TC18 step 1 - patient name in entity.name\". Run the whole collection (or the whole folder from the top), not this request alone."
      },
      "event": [
       {
@@ -4903,7 +4964,7 @@
         }
        ]
       },
-      "description": ""
+      "description": "**What it does:** Nothing was stored.\n\n**Request:** `GET /AuditEvent?event-uid={{u41}}`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Expected result:** HTTP 200.\n\n**Checks:**\n- Search total is 0\n\n**Needs an earlier request:** uses `{{u41}}`, saved by \"TC18 step 1 - patient name in entity.name\". Run the whole collection (or the whole folder from the top), not this request alone."
      },
      "event": [
       {
@@ -4918,7 +4979,8 @@
       }
      ]
     }
-   ]
+   ],
+   "description": "**Purpose:** Personal or clinical data in an event is refused.\n\n**Why it matters:** The audit trail records that something happened, not the patient's data. Names, national ID numbers and search values are rejected.\n\n**How it is tested:** Tries a patient name in entity.name, a national ID number in the outcome text and search values in entity.query. Each must be refused with 422 and nothing stored.\n\nRun the whole collection from the top. Requests in a folder depend on earlier ones."
   },
   {
    "name": "TC19 - A sender cannot use bundles to change or read records",
@@ -4948,7 +5010,7 @@
         }
        ]
       },
-      "description": ""
+      "description": "**What it does:** New event id for the bundle tests.\n\n**Request:** `GET /AuditEvent?_summary=count`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Expected result:** HTTP 200."
      },
      "event": [
       {
@@ -4992,7 +5054,7 @@
        ],
        "path": []
       },
-      "description": "",
+      "description": "**What it does:** Bundle containing an update (PUT).\n\n**Request:** `POST `\n\n**Sent as:** Client Registry (sending system), using Keycloak client `chester-test-cr-qa`. Role: AUDIT_WRITER: may only send events, cannot read.\n\n**Expected result:** HTTP 403.\n\n**Needs an earlier request:** uses `{{u42}}`, saved by \"TC19 setup - new event id for the bundle tests\". Run the whole collection (or the whole folder from the top), not this request alone.",
       "body": {
        "mode": "raw",
        "raw": "{\n \"resourceType\": \"Bundle\",\n \"type\": \"transaction\",\n \"entry\": [\n  {\n   \"resource\": {\n    \"resourceType\": \"AuditEvent\",\n    \"extension\": [\n     {\n      \"url\": \"http://dhp.health.gov.lk/fhir/StructureDefinition/audit-event-uid\",\n      \"valueString\": \"{{u42}}\"\n     }\n    ],\n    \"type\": {\n     \"system\": \"http://terminology.hl7.org/CodeSystem/audit-event-type\",\n     \"code\": \"rest\",\n     \"display\": \"RESTful Operation\"\n    },\n    \"action\": \"E\",\n    \"recorded\": \"{{recorded}}\",\n    \"outcome\": \"0\",\n    \"purposeOfEvent\": [\n     {\n      \"coding\": [\n       {\n        \"system\": \"http://terminology.hl7.org/CodeSystem/v3-ActReason\",\n        \"code\": \"TREAT\"\n       }\n      ]\n     }\n    ],\n    \"agent\": [\n     {\n      \"who\": {\n       \"reference\": \"Practitioner/QA-{{run}}-DOC\"\n      },\n      \"requestor\": true\n     }\n    ],\n    \"source\": {\n     \"site\": \"Negative test\",\n     \"observer\": {\n      \"reference\": \"Device/qa-{{run}}-neg\"\n     }\n    },\n    \"entity\": [\n     {\n      \"what\": {\n       \"reference\": \"Patient/QA-{{run}}-NEG\"\n      }\n     }\n    ],\n    \"subtype\": [\n     {\n      \"system\": \"http://hl7.org/fhir/restful-interaction\",\n      \"code\": \"operation\"\n     }\n    ],\n    \"id\": \"x\"\n   },\n   \"request\": {\n    \"method\": \"PUT\",\n    \"url\": \"AuditEvent/x\"\n   }\n  }\n ]\n}",
@@ -5036,7 +5098,7 @@
        ],
        "path": []
       },
-      "description": "",
+      "description": "**What it does:** Bundle containing a delete.\n\n**Request:** `POST `\n\n**Sent as:** Client Registry (sending system), using Keycloak client `chester-test-cr-qa`. Role: AUDIT_WRITER: may only send events, cannot read.\n\n**Expected result:** HTTP 403.",
       "body": {
        "mode": "raw",
        "raw": "{\n \"resourceType\": \"Bundle\",\n \"type\": \"transaction\",\n \"entry\": [\n  {\n   \"request\": {\n    \"method\": \"DELETE\",\n    \"url\": \"AuditEvent/x\"\n   }\n  }\n ]\n}",
@@ -5080,7 +5142,7 @@
        ],
        "path": []
       },
-      "description": "",
+      "description": "**What it does:** Bundle containing a read.\n\n**Request:** `POST `\n\n**Sent as:** Client Registry (sending system), using Keycloak client `chester-test-cr-qa`. Role: AUDIT_WRITER: may only send events, cannot read.\n\n**Expected result:** HTTP 403.",
       "body": {
        "mode": "raw",
        "raw": "{\n \"resourceType\": \"Bundle\",\n \"type\": \"transaction\",\n \"entry\": [\n  {\n   \"request\": {\n    \"method\": \"GET\",\n    \"url\": \"AuditEvent\"\n   }\n  }\n ]\n}",
@@ -5124,7 +5186,7 @@
        ],
        "path": []
       },
-      "description": "",
+      "description": "**What it does:** Bundle containing a Patient.\n\n**Request:** `POST `\n\n**Sent as:** Client Registry (sending system), using Keycloak client `chester-test-cr-qa`. Role: AUDIT_WRITER: may only send events, cannot read.\n\n**Expected result:** HTTP 403.",
       "body": {
        "mode": "raw",
        "raw": "{\n \"resourceType\": \"Bundle\",\n \"type\": \"transaction\",\n \"entry\": [\n  {\n   \"resource\": {\n    \"resourceType\": \"Patient\",\n    \"name\": [\n     {\n      \"family\": \"Test\"\n     }\n    ]\n   },\n   \"request\": {\n    \"method\": \"POST\",\n    \"url\": \"Patient\"\n   }\n  }\n ]\n}",
@@ -5170,7 +5232,7 @@
         "Patient"
        ]
       },
-      "description": "",
+      "description": "**What it does:** A Patient sent directly.\n\n**Request:** `POST /Patient`\n\n**Sent as:** Client Registry (sending system), using Keycloak client `chester-test-cr-qa`. Role: AUDIT_WRITER: may only send events, cannot read.\n\n**Checks:**\n- Refused",
       "body": {
        "mode": "raw",
        "raw": "{\"resourceType\":\"Patient\",\"name\":[{\"family\":\"Test\"}]}",
@@ -5218,7 +5280,7 @@
         }
        ]
       },
-      "description": ""
+      "description": "**What it does:** The event in step 1 was not stored.\n\n**Request:** `GET /AuditEvent?event-uid={{u42}}`\n\n**Sent as:** Ministry auditor, using Keycloak client `chester-test-auditor-qa`. Role: MINISTRY_AUDITOR: may read every event, cannot write.\n\n**Expected result:** HTTP 200.\n\n**Checks:**\n- Search total is 0\n\n**Needs an earlier request:** uses `{{u42}}`, saved by \"TC19 setup - new event id for the bundle tests\". Run the whole collection (or the whole folder from the top), not this request alone."
      },
      "event": [
       {
@@ -5233,7 +5295,8 @@
       }
      ]
     }
-   ]
+   ],
+   "description": "**Purpose:** A sender cannot use bundles to change or read records.\n\n**Why it matters:** A bundle can contain several operations at once. A sending system must not be able to use one to slip in an update, delete or read, or to store another resource type.\n\n**How it is tested:** A sending system sends bundles holding an update, a delete, a read and a Patient, each of which must return 403, and a Patient sent directly, which must be refused. The event from the first bundle must not exist.\n\nRun the whole collection from the top. Requests in a folder depend on earlier ones."
   }
  ]
 }
